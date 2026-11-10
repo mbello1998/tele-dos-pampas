@@ -248,10 +248,15 @@ Script de build consulta o Overpass e grava os JSON por cidade.
 **Restrições descobertas e verificadas em 09/11/2026:**
 
 - O Overpass responde a **GET com `User-Agent` definido**. POST retorna `406 Not Acceptable`, e consultas por `area[name=...]` caíram em `502 at capacity`. A extração usa **GET com bounding box**, com repetição em recuo exponencial.
-- Dados reais medidos na bbox `-30.44,-56.54,-30.32,-56.38`: **1.136 vias com nome e centro**, totalizando **521 nomes únicos** — aproximadamente **215 do lado de Quaraí e 306 do lado de Artigas** (divisão por latitude do rio, aproximada).
-- **14 nomes de rua existem nos dois lados da fronteira** — entre eles `18 de Julio`, `18 de Mayo`, `Aparicio Saravia`, `Amaro Ferreira Ramos`, `Brigadier General Diego Lamas`, `Avenida Simões Lopes Neto`. **Toda sugestão de endereço precisa exibir cidade e país**, e o pedido precisa gravar o país. Isso não é detalhe de interface: é prevenção de o motoboy atravessar a fronteira errada.
+- Dados reais medidos na bbox `-30.44,-56.54,-30.32,-56.38`: **1.136 vias com nome**, e **507 nomes únicos** na bbox.
+- Após classificação por ponto-em-polígono contra o limite municipal: **209 ruas em Quaraí e 262 em Artigas**, 470 nomes únicos na união. As 37 restantes caem fora dos dois polígonos (estradas rurais e barrios afastados, como `Ruta 30` e `Yerbal`).
+- **Apenas um nome existe nos dois lados da fronteira: `Puente de la Concordia`**, a ponte — gravada uma vez como `BR` e uma vez como `UY`.
 
-A classificação final por cidade usa ponto-em-polígono contra o limite municipal (baixado uma vez), não corte por latitude.
+  Correção registrada: uma versão anterior desta spec afirmava que 14 nomes se repetiam nos dois lados, entre eles `18 de Julio`. Isso era artefato de uma divisão aproximada por latitude: **Quaraí fica a leste de Artigas, nas mesmas latitudes**, então o corte por latitude misturou as duas cidades. Nos dados reais, `18 de Julio`, `18 de Mayo`, `Aparicio Saravia`, `Amaro Ferreira Ramos` e `Brigadier General Diego Lamas` existem **só em Artigas**, e `Avenida Simões Lopes Neto` **só em Quaraí**.
+
+- **Cidade e país continuam obrigatórios** em toda sugestão de endereço e em todo pedido, por três razões que não dependem de nomes repetidos: a busca varre as duas cidades ao mesmo tempo, então a lista de resultados mistura países e precisa rotular cada um; a moeda de cobrança decorre do país; e a taxa de travessia decorre de origem e destino estarem em países diferentes.
+
+A classificação por cidade usa ponto-em-polígono contra o limite municipal (baixado uma vez por id de relação do OSM e versionado), nunca corte por latitude.
 
 Saída por cidade: `{ id, name, name_normalized, city, country, segments: [[lat,lng]...], intersections: [{street_id, lat, lng}] }`, mais uma lista de **referências** extraída de `amenity`/`shop` do OSM (postos, praças, escolas, igrejas, hospital, a ponte).
 

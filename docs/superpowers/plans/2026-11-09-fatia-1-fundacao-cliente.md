@@ -17,7 +17,7 @@
 - **RLS habilitada em todas as tabelas**, sem exceção. Tabela sem policy é bug bloqueante.
 - Papel do usuário é lido de `profiles.role` por função `security definer`, **nunca** de claim de JWT.
 - `pricing_rules` e `fx_rates` são **versionadas por data**, nunca editadas no lugar.
-- Toda sugestão de endereço e todo endereço gravado carregam **cidade e país** obrigatórios (14 nomes de rua existem nos dois lados da fronteira).
+- Toda sugestão de endereço e todo endereço gravado carregam **cidade e país** obrigatórios. Razão: a busca varre as duas cidades juntas e a lista mistura países; a moeda decorre do país; e a taxa de travessia decorre de origem e destino estarem em países diferentes. (Nos dados reais só `Puente de la Concordia` se repete nos dois lados — a afirmação anterior de 14 nomes repetidos era artefato de uma divisão por latitude e foi corrigida na spec.)
 - Valores padrão de preço: base R$ 10,00 · 2,0 km inclusos · R$ 2,50/km · mínimo R$ 10,00 · noturno R$ 3,00 entre 23h e 05h · travessia R$ 8,00 · travessia com passageiro R$ 12,00.
 - Fallback de distância sem OSRM: haversine × **1,35**, marcado em `route_source`.
 - Posição do motoboy transmitida a cada **10 s ou 30 m**, o que vier primeiro, e só durante pedido ativo.
@@ -138,7 +138,7 @@ test('extrai cruzamentos onde duas ruas compartilham coordenada')
 test('agrupa segmentos da mesma rua sob um único registro')
 test('descarta via sem nome')
 ```
-Cada teste usa `tests/fixtures/overpass-sample.json`, um recorte real de ~20 vias com os dois lados da fronteira, incluindo `18 de Julio` duplicada.
+Cada teste usa `tests/fixtures/overpass-sample.json`, um recorte real de ~20 vias com os dois lados da fronteira, incluindo `Puente de la Concordia`, o único nome presente nos dois países.
 
 - [ ] **Step 2: Rodar e confirmar a falha**
 
@@ -157,7 +157,7 @@ Expected: PASS
 - [ ] **Step 5: Gerar o dataset real e conferir as contagens**
 
 Run: `npx tsx scripts/osm/build-dataset.ts`
-Expected: `quarai.json` e `artigas.json` criados; total de nomes únicos próximo de 521, com aproximadamente 215 em Quaraí e 306 em Artigas; `18 de Julio` presente nos dois arquivos com `country` diferente
+Expected: `quarai.json` e `artigas.json` criados; **209 ruas em Quaraí e 262 em Artigas**, 470 nomes únicos na união; `Puente de la Concordia` presente nos dois arquivos com `country` diferente
 
 - [ ] **Step 6: Commit**
 
@@ -473,7 +473,8 @@ git add -A && git commit -m "feat: auth OTP, perfis com papel protegido e i18n p
 
 ```tsx
 test('digitar 3 letras lista ruas com nome da cidade e bandeira do país')
-test('escolher "18 de Julio" exige escolher a cidade antes de prosseguir')   // duplicata de fronteira
+test('escolher "Puente de la Concordia" exige escolher o país antes de prosseguir')  // único nome nos dois lados
+test('resultado de busca sempre rotula cidade e país, mesmo sem nome repetido')
 test('após escolher a rua, lista as esquinas vindas de intersections')
 test('escolher quadra grava precision "quadra" e coordenada no meio do trecho')
 test('usar minha localização grava precision "gps"')
