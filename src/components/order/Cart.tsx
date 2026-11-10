@@ -7,6 +7,7 @@ import { cartStore, lineTotalBrl, subtotalBrlOf, useCart, type CartState, type C
 import { catalogT, fmt, type Translate } from '@/lib/cart/copy'
 import { formatDisplayMoney } from '@/lib/cart/money'
 import type { Currency, DisplayFx, Locale } from '@/lib/cart/types'
+import { FxNote } from '@/components/catalog/FxNote'
 
 type Props = {
   currency: Currency
@@ -83,6 +84,9 @@ export function Cart({ currency, locale, fx, t = catalogT, state, store = cartSt
         <span className="preco text-lg font-semibold text-sol">{money(subtotalBrlOf(cart))}</span>
       </div>
       <p className="mt-1 text-xs text-white/60">{t('cart.estimate_note', locale)}</p>
+      <div className="mt-1">
+        <FxNote currency={currency} fx={fx} locale={locale} t={t} />
+      </div>
 
       {checkoutHref && (
         <Link href={checkoutHref} className="mt-4 block min-h-11 rounded-lg bg-sol px-4 py-3 text-center font-semibold text-noite">

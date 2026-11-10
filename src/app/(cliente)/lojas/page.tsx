@@ -9,6 +9,7 @@ import { MerchantCard } from '@/components/catalog/MerchantCard'
 import { catalogT } from '@/lib/cart/copy'
 import { MERCHANT_COLUMNS, type MerchantRow } from '@/lib/cart/catalog-map'
 import { isMerchantOpen, type MerchantHoursRow } from '@/lib/cart/open'
+import { loadServiceWindows } from '@/lib/cart/service-window'
 import { getLocale } from '@/lib/i18n/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -40,6 +41,8 @@ export default async function Lojas() {
   }
 
   const now = new Date()
+  // Horário de serviço do município, da mesma função que o quote_order usa (falha fechado).
+  const service = await loadServiceWindows(supabase, rows.map((m) => m.city), now)
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6">
       <h1 className="text-2xl font-semibold">{catalogT('catalog.shops', locale)}</h1>
@@ -49,7 +52,7 @@ export default async function Lojas() {
         <ul className="mt-4 space-y-3">
           {rows.map((m) => (
             <li key={m.id}>
-              <MerchantCard merchant={m} isOpen={isMerchantOpen(m, hoursByMerchant.get(m.id) ?? [], now)} locale={locale} />
+              <MerchantCard merchant={m} isOpen={isMerchantOpen(m, hoursByMerchant.get(m.id) ?? [], now, service.get(m.city) === true)} locale={locale} />
             </li>
           ))}
         </ul>

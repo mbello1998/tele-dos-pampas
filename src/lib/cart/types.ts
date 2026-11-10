@@ -6,7 +6,12 @@ import type { Currency, Locale } from '@/lib/money/format'
 export type { Currency, Locale }
 
 /** Taxa BRL->UYU para exibir preços de vitrine: a de `getEffectiveRate`, com o spread. Nunca é o preço cobrado. */
-export type DisplayFx = { rate: number; spreadPct: number }
+export type DisplayFx = {
+  rate: number
+  spreadPct: number
+  /** Ausente quando a taxa é a do dia. Ver fxNoteFrom. */
+  note?: { kind: 'dated'; date: string } | { kind: 'default' }
+}
 
 export type OptionData = {
   id: string

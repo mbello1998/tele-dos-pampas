@@ -12,8 +12,11 @@ import { ItemCard } from '@/components/catalog/ItemCard'
 import { Cart } from '@/components/order/Cart'
 import { buildMenu, MERCHANT_COLUMNS, type CategoryRow, type ItemRow, type MerchantRow } from '@/lib/cart/catalog-map'
 import { catalogT, fmt } from '@/lib/cart/copy'
+import { FxNote } from '@/components/catalog/FxNote'
+import { fxNoteFrom } from '@/lib/cart/fx-note'
 import { isMerchantOpen, type MerchantHoursRow } from '@/lib/cart/open'
-import { getEffectiveRate } from '@/lib/fx/rate'
+import { loadServiceWindows } from '@/lib/cart/service-window'
+import { getEffectiveRate, toValidForDate } from '@/lib/fx/rate'
 import { getLocale } from '@/lib/i18n/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -54,9 +57,11 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
     if (r.error) throw new Error(`cardápio: leitura do catálogo falhou (${r.error.code ?? 'sem código'})`)
   }
 
-  const isOpen = isMerchantOpen(shop, (hoursRes.data ?? []) as MerchantHoursRow[], new Date())
+  const now = new Date()
+  const service = await loadServiceWindows(supabase, [shop.city], now)
+  const isOpen = isMerchantOpen(shop, (hoursRes.data ?? []) as MerchantHoursRow[], now, service.get(shop.city) === true)
   const sections = buildMenu((categoriesRes.data ?? []) as CategoryRow[], (itemsRes.data ?? []) as unknown as ItemRow[])
-  const fx = { rate: rate.rate, spreadPct: rate.spreadPct }
+  const fx = { rate: rate.rate, spreadPct: rate.spreadPct, note: fxNoteFrom(rate, toValidForDate(now)) }
   const cartMerchant = { id: shop.id, name: shop.name, isOpen }
   const cityName = catalogT(`catalog.city.${shop.city}`, locale)
 
@@ -75,6 +80,10 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
           {isOpen ? catalogT('catalog.open', locale) : catalogT('catalog.closed', locale)}
         </p>
       </header>
+
+      <div className="mt-3">
+        <FxNote currency={profile.currencyPref} fx={fx} locale={locale} />
+      </div>
 
       {sections.length === 0 ? (
         <p className="mt-6 text-white/70">{catalogT('catalog.empty_menu', locale)}</p>

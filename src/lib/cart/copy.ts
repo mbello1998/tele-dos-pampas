@@ -20,6 +20,8 @@ export const COPY: Record<Locale, Record<string, string>> = {
     'pricing.night_surcharge': 'Adicional noturno',
     'pricing.cross_border_fee': 'Taxa de travessia',
     'pricing.passenger_cross_border_fee': 'Taxa de travessia (passageiro)',
+    'fx.dated': 'Preços em pesos pela cotação de {date}: a de hoje ainda não chegou.',
+    'fx.default': 'Preços em pesos por uma cotação aproximada: ainda não temos a do dia.',
     // resumo
     'pricing.title': 'Resumo do preço',
     'pricing.total': 'Total',
@@ -80,6 +82,8 @@ export const COPY: Record<Locale, Record<string, string>> = {
     'pricing.night_surcharge': 'Recargo nocturno',
     'pricing.cross_border_fee': 'Tarifa de cruce',
     'pricing.passenger_cross_border_fee': 'Tarifa de cruce (pasajero)',
+    'fx.dated': 'Precios en pesos con la cotización del {date}: la de hoy todavía no llegó.',
+    'fx.default': 'Precios en pesos con una cotización aproximada: todavía no tenemos la del día.',
     'pricing.title': 'Resumen del precio',
     'pricing.total': 'Total',
     'pricing.total_brl': 'Total en reales',

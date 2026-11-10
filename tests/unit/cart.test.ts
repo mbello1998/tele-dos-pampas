@@ -5,7 +5,10 @@ import { createCartStore, MAX_QTY, selectionKey, subtotalBrlOf, type CartState }
 import { missingGroups, selectionIssue, toggleOption } from '@/lib/cart/options'
 import { buildMenu, toItem, type ItemRow } from '@/lib/cart/catalog-map'
 import { attemptAdd } from '@/lib/cart/add-flow'
-import { isMerchantOpen, type MerchantHoursRow } from '@/lib/cart/open'
+import { isMerchantOpen as isMerchantOpenReal, type MerchantHoursRow, type MerchantOpenInput } from '@/lib/cart/open'
+import { loadServiceWindows } from '@/lib/cart/service-window'
+import { fxNoteFrom } from '@/lib/cart/fx-note'
+import { FxNote } from '@/components/catalog/FxNote'
 import { formatDisplayMoney, formatMoneyCeil, toDisplayAmount } from '@/lib/cart/money'
 import { catalogT, COPY } from '@/lib/cart/copy'
 import type { CatalogItem, OptionGroupData } from '@/lib/cart/types'
@@ -490,6 +493,10 @@ describe('observadores e persistência em sessionStorage', () => {
 // ---------------------------------------------------------------------------------------------
 // loja aberta
 // ---------------------------------------------------------------------------------------------
+// Nos testes de horário da loja o horário de serviço do município vale aberto, salvo pedido em contrário.
+const isMerchantOpen = (m: MerchantOpenInput, h: readonly MerchantHoursRow[], now: Date, serviceOpen = true) =>
+  isMerchantOpenReal(m, h, now, serviceOpen)
+
 describe('loja aberta', () => {
   // terça 10/11/2026 12:00 em Quaraí e em Artigas (as duas em UTC-3), ou seja 15:00Z.
   const terca12h = new Date('2026-11-10T15:00:00Z')
@@ -589,6 +596,29 @@ describe('loja aberta', () => {
   test('horário malformado falha fechado em vez de lançar', () => {
     expect(isMerchantOpen(quarai, [faixa(2, 'abc', '15:00:00')], terca12h)).toBe(false)
     expect(isMerchantOpen(quarai, [faixa(2, '11:00', '15:00')], terca12h)).toBe(true) // HH:MM também é aceito
+  })
+
+  test('fora do horário de serviço do município a loja está fechada, mesmo aprovada, manual ligado e dentro da faixa', () => {
+    const h = [faixa(2, '00:00:00', '00:00:00')]
+    expect(isMerchantOpen(quarai, h, terca12h, false)).toBe(false)
+    expect(isMerchantOpen(quarai, h, terca12h, true)).toBe(true)
+  })
+
+  test('o trailer semeado (06:00 a 00:00, atravessa a meia-noite) em todos os dias, com o serviço aberto', () => {
+    const semana = [0, 1, 2, 3, 4, 5, 6].map((d) => faixa(d, '06:00:00', '00:00:00'))
+    expect(isMerchantOpen(quarai, semana, new Date('2026-11-10T09:00:00Z'))).toBe(true) // 06:00
+    expect(isMerchantOpen(quarai, semana, new Date('2026-11-10T08:59:00Z'))).toBe(false) // 05:59
+    expect(isMerchantOpen(quarai, semana, new Date('2026-11-11T02:59:00Z'))).toBe(true) // 23:59
+    expect(isMerchantOpen(quarai, semana, new Date('2026-11-11T03:00:00Z'))).toBe(false) // 00:00
+  })
+
+  test('o restaurante semeado (08:00 a 23:00) não atravessa a meia-noite', () => {
+    const semana = [0, 1, 2, 3, 4, 5, 6].map((d) => faixa(d, '08:00:00', '23:00:00'))
+    const artigas = { ...quarai, city: 'artigas' }
+    expect(isMerchantOpen(artigas, semana, new Date('2026-11-10T11:00:00Z'))).toBe(true) // 08:00
+    expect(isMerchantOpen(artigas, semana, new Date('2026-11-10T10:59:00Z'))).toBe(false)
+    expect(isMerchantOpen(artigas, semana, new Date('2026-11-11T01:59:00Z'))).toBe(true) // 22:59
+    expect(isMerchantOpen(artigas, semana, new Date('2026-11-11T02:00:00Z'))).toBe(false) // 23:00
   })
 
   test('a travessia da ponte não entra na conta: loja binacional segue só o próprio horário', () => {
@@ -1106,5 +1136,92 @@ describe('mapeamento do catálogo', () => {
 
   test('cardápio vazio gera zero seções', () => {
     expect(buildMenu([], [])).toEqual([])
+  })
+})
+
+describe('horário de serviço vindo do banco', () => {
+  const rpc = (impl: () => { data: unknown; error: { code?: string } | null }) => {
+    const calls: [string, Record<string, unknown>][] = []
+    return {
+      calls,
+      client: {
+        rpc: async (name: string, args: Record<string, unknown>) => {
+          calls.push([name, args])
+          return impl()
+        },
+      },
+    }
+  }
+  const at = new Date('2026-11-10T15:00:00Z')
+
+  test('pergunta is_within_service_hours por cidade, tipo food, no instante dado (uma vez por cidade)', async () => {
+    const r = rpc(() => ({ data: true, error: null }))
+    const w = await loadServiceWindows(r.client as never, ['quarai', 'artigas', 'quarai'], at)
+    expect(r.calls).toHaveLength(2)
+    expect(r.calls[0][0]).toBe('is_within_service_hours')
+    expect(r.calls.map((c) => c[1])).toEqual([
+      { p_city: 'quarai', p_kind: 'food', p_at: at.toISOString() },
+      { p_city: 'artigas', p_kind: 'food', p_at: at.toISOString() },
+    ])
+    expect(w.get('quarai')).toBe(true)
+    expect(w.get('artigas')).toBe(true)
+  })
+
+  test('resposta falsa fecha; erro e resposta que não é booleano true também fecham (falha fechado)', async () => {
+    const silencio = console.error
+    console.error = () => {}
+    try {
+      const f = await loadServiceWindows(rpc(() => ({ data: false, error: null })).client as never, ['quarai'], at)
+      expect(f.get('quarai')).toBe(false)
+      const e = await loadServiceWindows(rpc(() => ({ data: null, error: { code: '55000' } })).client as never, ['quarai'], at)
+      expect(e.get('quarai')).toBe(false)
+      const e2 = await loadServiceWindows(rpc(() => ({ data: true, error: { code: 'X' } })).client as never, ['quarai'], at)
+      expect(e2.get('quarai')).toBe(false)
+      const n = await loadServiceWindows(rpc(() => ({ data: 'true', error: null })).client as never, ['quarai'], at)
+      expect(n.get('quarai')).toBe(false)
+    } finally {
+      console.error = silencio
+    }
+  })
+})
+
+describe('cotação defasada visível', () => {
+  test('cotação do dia: sem aviso', () => {
+    expect(fxNoteFrom({ isStale: false, validForDate: '2026-11-10' }, '2026-11-10')).toBeUndefined()
+  })
+
+  test('última cotação gravada, de dia anterior: aviso com a data DD/MM', () => {
+    expect(fxNoteFrom({ isStale: true, validForDate: '2026-11-08' }, '2026-11-10')).toEqual({ kind: 'dated', date: '08/11' })
+  })
+
+  test('taxa padrão (getEffectiveRate devolve a data de HOJE com isStale): aviso de aproximada, nunca "cotação de hoje"', () => {
+    expect(fxNoteFrom({ isStale: true, validForDate: '2026-11-10' }, '2026-11-10')).toEqual({ kind: 'default' })
+    expect(fxNoteFrom({ isStale: true, validForDate: '2026-11-12' }, '2026-11-10')).toEqual({ kind: 'default' })
+    expect(fxNoteFrom({ isStale: true, validForDate: 'lixo' }, '2026-11-10')).toEqual({ kind: 'default' })
+  })
+
+  type Nota = { kind: 'dated'; date: string } | { kind: 'default' } | undefined
+  const nota = (currency: 'BRL' | 'UYU', note: Nota, locale: 'pt-BR' | 'es-UY' = 'pt-BR') =>
+    html(createElement(FxNote, { currency, locale, fx: { rate: 7.8, spreadPct: 5, note } }))
+
+  test('em pesos o aviso diz a data, nos dois idiomas', () => {
+    expect(texto(nota('UYU', { kind: 'dated', date: '08/11' }))).toContain('cotação de 08/11')
+    expect(texto(nota('UYU', { kind: 'dated', date: '08/11' }, 'es-UY'))).toContain('cotización del 08/11')
+    expect(texto(nota('UYU', { kind: 'default' }))).toContain('aproximada')
+  })
+
+  test('em reais, ou com cotação do dia, não há aviso', () => {
+    expect(nota('BRL', { kind: 'dated', date: '08/11' })).toBe('')
+    expect(nota('UYU', undefined)).toBe('')
+    expect(html(createElement(FxNote, { currency: 'UYU', locale: 'pt-BR', fx: null }))).toBe('')
+  })
+
+  test('o carrinho em pesos mostra o aviso ao lado do subtotal; em reais não', () => {
+    const s = novoStore()
+    s.addItem(M1, agua(), [], 1)
+    const render = (currency: 'BRL' | 'UYU') =>
+      html(createElement(Cart, { state: s.getState(), currency, locale: 'pt-BR', fx: { rate: 7.8, spreadPct: 5, note: { kind: 'dated', date: '08/11' } } }))
+    expect(texto(render('UYU'))).toContain('cotação de 08/11')
+    expect(texto(render('BRL'))).not.toContain('cotação de')
   })
 })

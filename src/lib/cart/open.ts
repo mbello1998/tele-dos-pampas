@@ -1,8 +1,11 @@
-// Loja aberta = status approved E is_open_manual E hora atual dentro de uma faixa de merchant_hours.
+// Loja aberta = status approved E is_open_manual E hora atual dentro de uma faixa de merchant_hours E dentro do
+// horário de serviço do município (06:00 a 00:00).
 // A chave manual manda: é o que o dono aperta quando o gás acaba, e vale mesmo dentro do horário.
 //
-// O relógio é o da CIDADE da loja, não o do servidor (UTC). A ponte não tem horário e nunca entra aqui; o único
-// limite de tempo além da loja é o horário de serviço do município (06:00 a 00:00), que o quote_order aplica.
+// O relógio da loja é o da CIDADE dela, não o do servidor (UTC). O horário de serviço NÃO é recalculado aqui:
+// vem de public.is_within_service_hours (a mesma função que o quote_order usa), para a tela e o banco nunca
+// discordarem, e entra como `serviceWindowOpen`. Mostrar "aberta" quando o pedido vai ser recusado só no
+// checkout é o pior lugar para o cliente descobrir. A ponte não tem horário e nunca entra aqui.
 
 export type MerchantHoursRow = { weekday: number; opens_at: string; closes_at: string }
 
@@ -48,7 +51,14 @@ function toSeconds(time: string): number | null {
   return h * 3600 + min * 60 + s
 }
 
-export function isMerchantOpen(merchant: MerchantOpenInput, hours: readonly MerchantHoursRow[], now: Date): boolean {
+export function isMerchantOpen(
+  merchant: MerchantOpenInput,
+  hours: readonly MerchantHoursRow[],
+  now: Date,
+  /** Resposta de is_within_service_hours para a cidade da loja, tipo food, neste instante. Obrigatório, sem padrão. */
+  serviceWindowOpen: boolean,
+): boolean {
+  if (!serviceWindowOpen) return false
   if (merchant.status !== undefined && merchant.status !== 'approved') return false
   if (!merchant.is_open_manual) return false
   const clock = localClock(merchant.city, now)
