@@ -149,7 +149,7 @@ test('salvar exige a referência e, preenchida, chega à Server Action (que recu
   await page.getByRole('radio').first().check()
 
   await page.getByRole('button', { name: /salvar endereço/i }).click()
-  await expect(page.getByRole('alert')).toContainText(/escreva uma referência/i)
+  await expect(page.locator('p[role=alert]')).toContainText(/escreva uma referência/i)
   expect(acoes).toEqual([]) // nem saiu do navegador
 
   await page.getByLabel(/ponto de referência/i).fill('casa verde, do lado do posto')
@@ -165,7 +165,7 @@ test('em 360 px não há rolagem lateral e os alvos de toque têm 44 px', async 
   const largura = () =>
     page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
 
-  await rua(page).fill('avenida')
+  await rua(page).fill('brigadier') // nomes longos: o pior caso para a largura de 360 px
   await expect(page.getByRole('option').first()).toBeVisible()
   let w = await largura()
   expect(w.scroll).toBeLessThanOrEqual(w.client)
@@ -186,4 +186,46 @@ test('em 360 px não há rolagem lateral e os alvos de toque têm 44 px', async 
   for (const rotulo of await page.locator('fieldset label').all()) {
     expect((await rotulo.boundingBox())!.height).toBeGreaterThanOrEqual(43.5)
   }
+})
+
+test('rua fora do mapa: nome livre, cidade, ponto e referência levam à Server Action com streetId nulo', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: -30.40107, longitude: -56.49277, accuracy: 10 }) // em Artigas
+  const corpos: string[] = []
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.headers()['next-action']) corpos.push(r.postData() ?? '')
+  })
+  await page.goto(URL_PAGINA, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: /não encontrei minha rua/i }).click()
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /salvar endereço/i })).toBeDisabled()
+
+  await page.getByLabel(/Artigas · Uruguai/).check()
+  await page.getByLabel(/nome da rua/i).fill('Calle Loteo Nuevo')
+  await page.getByRole('button', { name: /usar minha localização/i }).click()
+  await expect(page.getByText('Ponto marcado.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /salvar endereço/i })).toBeEnabled()
+
+  await page.getByRole('button', { name: /salvar endereço/i }).click() // falta a referência: obrigatória mesmo com GPS
+  await expect(page.locator('p[role=alert]')).toContainText(/escreva uma referência/i)
+  expect(corpos).toEqual([])
+
+  await page.getByLabel(/ponto de referência/i).fill('portão preto, em frente à escola')
+  await page.getByRole('button', { name: /salvar endereço/i }).click()
+  await expect.poll(() => corpos.length).toBe(1)
+  expect(corpos[0]).toContain('Calle Loteo Nuevo')
+  expect(corpos[0]).toContain('artigas')
+  await expect(page.getByText(/não foi possível salvar/i)).toBeVisible() // sem sessão a ação recusa
+})
+
+test('rua fora do mapa: cidade que contradiz o ponto é barrada antes de qualquer envio', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: -30.40107, longitude: -56.49277, accuracy: 10 }) // sobre uma rua de Artigas
+  await page.goto(URL_PAGINA, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: /não encontrei minha rua/i }).click()
+  await page.getByLabel(/Quaraí · Brasil/).check() // diz Quaraí, o aparelho está em Artigas
+  await page.getByLabel(/nome da rua/i).fill('Calle Loteo Nuevo')
+  await page.getByRole('button', { name: /usar minha localização/i }).click()
+  await expect(page.locator('p[role=alert]').filter({ hasText: /Artigas \(Uruguai\)/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /salvar endereço/i })).toBeDisabled()
 })

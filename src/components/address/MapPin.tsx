@@ -152,7 +152,7 @@ export function MapPin({ locale, street, required = false, center, value, onChan
         setLocating(false)
         setNote(err.code === 1 ? 'denied' : err.code === 3 ? 'timeout' : 'unavailable')
       },
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 /* sempre uma leitura nova: quem tenta de novo depois de andar não pode receber a posição velha */ },
     )
   }
 
