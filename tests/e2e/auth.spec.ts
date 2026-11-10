@@ -23,6 +23,8 @@ test.describe('sem conta', () => {
       ['/admin/despacho', '/entrar?next=%2Fadmin%2Fdespacho'],
       // sem página alguma: só o middleware pode redirecionar (sem ele seria um 404)
       ['/admin/nao-existe', '/entrar?next=%2Fadmin%2Fnao-existe'],
+      // com extensão no fim: o matcher que pula arquivos estáticos não pode deixar /admin escapar
+      ['/admin/export.csv', '/entrar?next=%2Fadmin%2Fexport.csv'],
       ['/perfil', '/entrar?next=%2Fperfil'],
       ['/onboarding', '/entrar?next=%2Fonboarding'],
       ['/aguardando', '/entrar'],

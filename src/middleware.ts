@@ -57,5 +57,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Tudo, menos: a landing (/ e /es), internos do Next, estáticos com extensão, e as pastas públicas.
-  matcher: ['/((?!_next/|api/|hero/|data/|es$|favicon\\.ico$|.*\\.[a-zA-Z0-9]+$).+)'],
+  matcher: [
+    '/((?!_next/|api/|hero/|data/|es$|favicon\\.ico$|.*\\.[a-zA-Z0-9]+$).+)',
+    // /admin sempre passa pelo guard, mesmo com extensão no fim: um Route Handler /admin/export.csv escaparia
+    // da regra acima, que existe para pular arquivos estáticos.
+    '/admin/:path*',
+  ],
 }
