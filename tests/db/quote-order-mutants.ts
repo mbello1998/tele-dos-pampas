@@ -242,7 +242,11 @@ export async function installMutant(db: Client): Promise<string> {
   const name = process.env.QUOTE_ORDER_MUTANT ?? ''
   const edits = MUTANTS[name]
   if (!edits) throw new Error(`unknown mutant "${name}"`)
-  let sql = readFileSync(resolve(process.cwd(), MIGRATION), 'utf8')
+  // normalise line endings: a Windows checkout may hand us CRLF and the edits below use 
+
+  let sql = readFileSync(resolve(process.cwd(), MIGRATION), 'utf8').replace(/
+/g, '
+')
   for (const e of edits) {
     const n = sql.split(e.from).length - 1
     if (e.all ? n < 1 : n !== 1) throw new Error(`mutant "${name}" is stale: ${n} matches for ${JSON.stringify(e.from.slice(0, 70))}`)
