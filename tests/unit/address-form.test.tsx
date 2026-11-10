@@ -22,6 +22,9 @@ const spies = vi.hoisted(() => ({
 }))
 
 vi.mock('@/actions/addresses', () => ({ saveAddress: spies.save }))
+// O módulo real da ação entra à parte (vi.importActual); só o cliente do Supabase é trocado.
+const sb = vi.hoisted(() => ({ createClient: vi.fn() }))
+vi.mock('@/lib/supabase/server', () => ({ createClient: sb.createClient }))
 vi.mock('@/components/map/LeafletMap', () => {
   spies.leafletImported = true
   return {
@@ -32,7 +35,7 @@ vi.mock('@/components/map/LeafletMap', () => {
   }
 })
 
-import { AddressForm } from '@/components/address/AddressForm'
+import { AddressForm, borderMismatch } from '@/components/address/AddressForm'
 import { deriveBlocks, distanceToStreetMeters, streetAnchor } from '@/components/address/BlockPicker'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -541,6 +544,20 @@ describe('pino e localização', () => {
     expect(sent.lat).toBeCloseTo(-30.39, 4)
   })
 
+  test('GPS impreciso (Wi-Fi de computador, 2 km) não vira "gps": o entregador iria ao lugar errado', async () => {
+    stubGeolocation({ coords: { latitude: -30.39003, longitude: -56.457, accuracy: 2000 } })
+    const { c } = await formComTeste()
+    await click(button(c, /usar minha localização/i)!)
+    await flush()
+    expect(c.textContent).toMatch(/imprecisa/i)
+    expect(c.textContent).not.toContain('Ponto marcado.')
+    await click(blockRadios(c)[1])
+    await typeInto(refInput(c), 'casa')
+    await click(salvar(c))
+    await flush()
+    expect(spies.save.mock.calls[0][0].precision).toBe('quadra')
+  })
+
   test('o mapa não é montado até o usuário pedir o pino', async () => {
     const loadTileUrl = vi.fn(() => Promise.resolve('https://tiles.exemplo.test/{z}/{x}/{y}.png'))
     const { c } = await formComTeste({ loadTileUrl })
@@ -688,6 +705,23 @@ describe('referência, apelido e envio', () => {
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
+  test('dois envios no mesmo instante (antes de a tela re-renderizar) também saem uma vez só', async () => {
+    let release: (v: unknown) => void = () => {}
+    spies.save.mockImplementation((i) => new Promise((res) => (release = () => res({ id: 'x', isDefault: true, ...i }))))
+    const { c, onDone } = await formComTeste()
+    await click(blockRadios(c)[1])
+    await typeInto(refInput(c), 'casa verde')
+    const form = q<HTMLFormElement>(c, 'form')!
+    await act(async () => {
+      form.requestSubmit()
+      form.requestSubmit()
+    })
+    expect(spies.save).toHaveBeenCalledTimes(1)
+    await act(async () => release(null))
+    await flush()
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
   test('falha ao salvar mostra erro, mantém o que foi digitado e libera o botão', async () => {
     spies.save.mockRejectedValueOnce(new Error('boom'))
     const { c, onDone } = await formComTeste()
@@ -713,5 +747,432 @@ describe('referência, apelido e envio', () => {
     expect(options(c)[0].textContent).toMatch(/Uruguay/)
     expect(c.textContent).toMatch(/Calle|calle/)
     expect(button(c, /guardar dirección/i)).toBeDefined()
+  })
+})
+
+// =============================================================================================
+// "Não encontrei minha rua": quem mora numa rua que o OSM não tem precisa conseguir pedir
+// =============================================================================================
+const CENTRO_ARTIGAS = { lat: -30.4, lng: -56.47 }
+const naoAcheiMinhaRua = (c: ParentNode) => button(c, /não encontrei minha rua/i)!
+const cidade = (c: ParentNode, valor: string) => q<HTMLInputElement>(c, `input[name=city][value=${valor}]`)!
+const nomeDaRua = (c: ParentNode) => q<HTMLInputElement>(c, 'input[name=streetName]')!
+
+async function formSemRua(extra: Record<string, unknown> = {}) {
+  const onDone = vi.fn()
+  const c = await mount(createElement(AddressForm, { onDone, loadDatasets: syntheticLoader, ...extra }))
+  await click(naoAcheiMinhaRua(c))
+  await flush()
+  return { c, onDone }
+}
+async function abrirMapaEMarcar(c: ParentNode, p: LatLng) {
+  await click(button(c, /marcar no mapa/i)!)
+  await flush()
+  await flush()
+  await act(async () => (spies.leafletProps!.onChange as (p: LatLng) => void)(p))
+}
+
+describe('rua que não está no dataset', () => {
+  test('a busca oferece a saída, e ela abre nome livre + cidade, sem seletor de quadra', async () => {
+    const { c } = await formSemRua()
+    expect(nomeDaRua(c)).not.toBeNull()
+    expect(cidade(c, 'quarai')).not.toBeNull()
+    expect(cidade(c, 'artigas')).not.toBeNull()
+    expect(c.textContent).toMatch(/Quaraí · Brasil/)
+    expect(c.textContent).toMatch(/Artigas · Uruguai/)
+    expect(q(c, '[role=combobox]')).toBeNull() // o campo de busca saiu do caminho
+    expect(blockRadios(c)).toHaveLength(0)
+    expect(c.textContent).toMatch(/OpenStreetMap/) // o cliente sabe que a rua vai ser pedida ao mapa
+  })
+
+  test('o dataset passa a ser carregado ao entrar na saída, para conferir o lado da ponte', async () => {
+    const loader = vi.fn(() => Promise.resolve(synthetic))
+    const c = await mount(createElement(AddressForm, { onDone: vi.fn(), loadDatasets: loader }))
+    expect(loader).not.toHaveBeenCalled()
+    await click(naoAcheiMinhaRua(c))
+    await flush()
+    expect(loader).toHaveBeenCalledTimes(1)
+  })
+
+  test('o mapa só abre depois de escolher a cidade, e nasce no centro dela', async () => {
+    const { c } = await formSemRua({ loadTileUrl: () => Promise.resolve('https://tiles.exemplo.test/{z}/{x}/{y}.png') })
+    expect(button(c, /marcar no mapa/i)).toBeUndefined()
+    expect(c.textContent).toMatch(/escolha a cidade/i)
+    await click(cidade(c, 'artigas'))
+    await click(button(c, /marcar no mapa/i)!)
+    await flush()
+    await flush()
+    expect(spies.leafletProps!.position).toEqual(CENTRO_ARTIGAS)
+  })
+
+  test('sem ponto (pino ou GPS) não salva, mesmo com nome, cidade e referência', async () => {
+    const { c } = await formSemRua()
+    await click(cidade(c, 'artigas'))
+    await typeInto(nomeDaRua(c), 'Calle Nueva')
+    await typeInto(refInput(c), 'portón negro')
+    expect(salvar(c).disabled).toBe(true)
+    expect(c.textContent).toMatch(/falta marcar o ponto/i)
+    await click(salvar(c))
+    expect(spies.save).not.toHaveBeenCalled()
+  })
+
+  test('com GPS: grava streetId null, o nome digitado, país da cidade escolhida e a coordenada do aparelho', async () => {
+    stubGeolocation({ coords: { latitude: -30.4001, longitude: -56.4795, accuracy: 10 } })
+    const { c, onDone } = await formSemRua()
+    await click(cidade(c, 'artigas'))
+    await typeInto(nomeDaRua(c), '  Calle Nueva  ')
+    await click(button(c, /usar minha localização/i)!)
+    await flush()
+    await typeInto(refInput(c), 'portón negro')
+    await click(salvar(c))
+    await flush()
+    const sent = spies.save.mock.calls[0][0]
+    expect(sent).toMatchObject({
+      streetId: null,
+      streetName: 'Calle Nueva',
+      city: 'artigas',
+      country: 'UY',
+      precision: 'gps',
+      betweenStreets: '',
+      reference: 'portón negro',
+      label: 'Calle Nueva',
+    })
+    expect(sent.lat).toBeCloseTo(-30.4001, 6)
+    expect(sent.lng).toBeCloseTo(-56.4795, 6)
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  test('com o pino do mapa também, e o número entra no apelido padrão', async () => {
+    const { c } = await formSemRua({ loadTileUrl: () => Promise.resolve('https://tiles.exemplo.test/{z}/{x}/{y}.png') })
+    await click(cidade(c, 'quarai'))
+    await typeInto(nomeDaRua(c), 'Rua do Loteamento Novo')
+    await typeInto(q<HTMLInputElement>(c, 'input[name=number]')!, '45')
+    await abrirMapaEMarcar(c, { lat: -30.39004, lng: -56.45901 })
+    await typeInto(refInput(c), 'casa de esquina, muro azul')
+    await click(salvar(c))
+    await flush()
+    const sent = spies.save.mock.calls[0][0]
+    expect(sent).toMatchObject({ streetId: null, city: 'quarai', country: 'BR', precision: 'gps', label: 'Rua do Loteamento Novo, 45' })
+    expect(sent.lat).toBeCloseTo(-30.39004, 6)
+  })
+
+  test('a referência é obrigatória mesmo com GPS (é tudo o que o entregador tem)', async () => {
+    stubGeolocation({ coords: { latitude: -30.4001, longitude: -56.4795, accuracy: 10 } })
+    const { c } = await formSemRua()
+    await click(cidade(c, 'artigas'))
+    await typeInto(nomeDaRua(c), 'Calle Nueva')
+    await click(button(c, /usar minha localização/i)!)
+    await flush()
+    expect(refInput(c).required).toBe(true)
+    await click(salvar(c))
+    await flush()
+    expect(spies.save).not.toHaveBeenCalled()
+    expect(q(c, '[role=alert]')?.textContent ?? '').toMatch(/escreva uma referência/i)
+  })
+
+  test('sem o nome da rua não salva', async () => {
+    stubGeolocation({ coords: { latitude: -30.4001, longitude: -56.4795, accuracy: 10 } })
+    const { c } = await formSemRua()
+    await click(cidade(c, 'artigas'))
+    await click(button(c, /usar minha localização/i)!)
+    await flush()
+    await typeInto(refInput(c), 'portón negro')
+    await typeInto(nomeDaRua(c), '   ')
+    expect(salvar(c).disabled).toBe(true)
+  })
+
+  test('pino do outro lado da ponte contradiz a cidade escolhida: avisa e bloqueia (a moeda depende do país)', async () => {
+    // Calle Uruguaia (Artigas) está em lat -30.40; as ruas de Quaraí do dataset sintético estão em -30.39.
+    stubGeolocation({ coords: { latitude: -30.4001, longitude: -56.4795, accuracy: 10 } })
+    const { c } = await formSemRua()
+    await click(cidade(c, 'quarai')) // diz Quaraí, mas o ponto está colado numa rua de Artigas
+    await typeInto(nomeDaRua(c), 'Calle Nueva')
+    await click(button(c, /usar minha localização/i)!)
+    await flush()
+    await typeInto(refInput(c), 'portón negro')
+    expect(q(c, '[role=alert]')?.textContent ?? '').toMatch(/Artigas \(Uruguai\).*Quaraí/)
+    expect(salvar(c).disabled).toBe(true)
+    await click(cidade(c, 'artigas')) // corrigir a cidade não basta: o ponto foi descartado junto
+    expect(salvar(c).disabled).toBe(true)
+  })
+
+  test('"voltar à busca" devolve o campo de rua e descarta o que era da rua ausente', async () => {
+    const { c } = await formSemRua()
+    await click(cidade(c, 'artigas'))
+    await typeInto(nomeDaRua(c), 'Calle Nueva')
+    await click(button(c, /voltar à busca/i)!)
+    expect(streetInput(c)).not.toBeNull()
+    expect(nomeDaRua(c)).toBeNull()
+    await click(naoAcheiMinhaRua(c))
+    expect(nomeDaRua(c).value).toBe('')
+    expect(cidade(c, 'artigas').checked).toBe(false)
+  })
+
+  test('em espanhol a saída diz "No encuentro mi calle"', async () => {
+    const c = await mount(createElement(AddressForm, { onDone: vi.fn(), loadDatasets: syntheticLoader, locale: 'es-UY' }))
+    expect(button(c, /no encuentro mi calle/i)).toBeDefined()
+  })
+})
+
+describe('borderMismatch', () => {
+  const quaraiRua = real[0].streets.find((s) => s.name === 'Rua Bento Gonçalves')!
+  const artigasRua = real[1].streets.find((s) => s.name === '18 de Julio')!
+  const noQuarai = quaraiRua.segments[0][0]
+  const emArtigas = artigasRua.segments[0][0]
+
+  test('ponto sobre rua de Quaraí contradiz "Artigas" e vice-versa; coincidindo com a escolha, nada', () => {
+    expect(borderMismatch(noQuarai, 'artigas', real)).toBe('quarai')
+    expect(borderMismatch(emArtigas, 'quarai', real)).toBe('artigas')
+    expect(borderMismatch(noQuarai, 'quarai', real)).toBeNull()
+    expect(borderMismatch(emArtigas, 'artigas', real)).toBeNull()
+  })
+
+  test('longe de qualquer rua (campo aberto) não dá para saber: não bloqueia', () => {
+    expect(borderMismatch({ lat: -30.05, lng: -56.05 }, 'quarai', real)).toBeNull()
+    // ~10 km ao sul de Artigas e ~22 km de Quaraí: "mais perto de Artigas" não prova nada a essa distância
+    expect(borderMismatch({ lat: -30.6, lng: -56.45 }, 'quarai', real)).toBeNull()
+    expect(borderMismatch({ lat: -30.6, lng: -56.45 }, 'artigas', real)).toBeNull()
+  })
+})
+
+// =============================================================================================
+// A Server Action de verdade, com o cliente do Supabase trocado por um dublê
+// =============================================================================================
+describe('saveAddress (servidor)', () => {
+  const ok = (over: Record<string, unknown> = {}) => ({
+    label: '',
+    streetId: 'quarai-rua-bento-goncalves',
+    streetName: 'Rua Bento Gonçalves',
+    number: '12',
+    complement: '',
+    betweenStreets: 'Entre A e B',
+    reference: 'casa verde',
+    city: 'quarai',
+    country: 'BR',
+    lat: -30.39,
+    lng: -56.457,
+    precision: 'quadra',
+    ...over,
+  })
+
+  function fakeDb(opts: { user?: { id: string } | null; existing?: number; failFirstWith?: string } = {}) {
+    const inserted: Record<string, unknown>[] = []
+    let first = true
+    const insert = (row: Record<string, unknown>) => ({
+      select: () => ({
+        single: async () => {
+          inserted.push(row)
+          if (first && opts.failFirstWith) {
+            first = false
+            return { data: null, error: { code: opts.failFirstWith } }
+          }
+          return { data: { id: 'new-id', ...row }, error: null }
+        },
+      }),
+    })
+    sb.createClient.mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: opts.user === undefined ? { id: 'user-1' } : opts.user } }) },
+      from: () => ({ select: async () => ({ count: opts.existing ?? 0 }), insert }),
+    })
+    return inserted
+  }
+
+  const action = async () => (await vi.importActual<typeof import('@/actions/addresses')>('@/actions/addresses')).saveAddress
+
+  beforeEach(() => sb.createClient.mockReset())
+
+  test('quem não entrou não grava, e nada é inserido', async () => {
+    const inserted = fakeDb({ user: null })
+    await expect((await action())(ok() as never)).rejects.toThrow('not_authenticated')
+    expect(inserted).toEqual([])
+  })
+
+  test('o dono da linha é o usuário da sessão, nunca algo vindo no corpo', async () => {
+    const inserted = fakeDb()
+    await (await action())({ ...ok(), profile_id: 'outra-pessoa', profileId: 'outra-pessoa' } as never)
+    expect(inserted[0].profile_id).toBe('user-1')
+  })
+
+  test('grava rua, quadra, referência e coordenada; apelido vazio vira "rua, número"; texto vazio vira null', async () => {
+    const inserted = fakeDb()
+    const saved = await (await action())(ok({ complement: '   ' }) as never)
+    expect(inserted[0]).toMatchObject({
+      label: 'Rua Bento Gonçalves, 12',
+      street_id: 'quarai-rua-bento-goncalves',
+      between_streets: 'Entre A e B',
+      reference: 'casa verde',
+      complement: null,
+      lat: -30.39,
+      lng: -56.457,
+      precision: 'quadra',
+    })
+    expect(saved.id).toBe('new-id')
+  })
+
+  test('o primeiro endereço vira o padrão; o segundo não', async () => {
+    let inserted = fakeDb({ existing: 0 })
+    await (await action())(ok() as never)
+    expect(inserted[0].is_default).toBe(true)
+    inserted = fakeDb({ existing: 1 })
+    await (await action())(ok() as never)
+    expect(inserted[0].is_default).toBe(false)
+  })
+
+  test('duas gravações simultâneas do primeiro endereço: a que perde a corrida entra sem padrão', async () => {
+    const inserted = fakeDb({ existing: 0, failFirstWith: '23505' })
+    const saved = await (await action())(ok() as never)
+    expect(inserted.map((r) => r.is_default)).toEqual([true, false])
+    expect(saved.id).toBe('new-id')
+  })
+
+  test.each([
+    ['cidade inventada', { city: 'montevideo' }, 'invalid_city'],
+    ['país que não é o da cidade', { country: 'UY' }, 'invalid_country'],
+    ['precision inventada', { precision: 'chute' }, 'invalid_precision'],
+    ['sem latitude', { lat: undefined }, 'invalid_lat'],
+    ['latitude NaN', { lat: Number.NaN }, 'invalid_lat'],
+    ['coordenada 0,0 (GPS que falhou)', { lat: 0, lng: 0 }, 'invalid_lat'],
+    ['longitude fora da região', { lng: -40 }, 'invalid_lng'],
+    ['coordenada como texto', { lat: '-30.39' }, 'invalid_lat'],
+    ['quadra sem referência', { reference: '   ' }, 'invalid_reference'],
+    ['referência longa demais', { reference: 'x'.repeat(201) }, 'invalid_reference'],
+    ['rua sem nome', { streetName: '  ' }, 'invalid_street'],
+    ['id de rua vazio', { streetId: '' }, 'invalid_street'],
+  ])('recusa %s', async (_nome, over, code) => {
+    const inserted = fakeDb()
+    await expect((await action())(ok(over) as never)).rejects.toThrow(code)
+    expect(inserted).toEqual([])
+  })
+
+  test('com GPS a referência é opcional', async () => {
+    const inserted = fakeDb()
+    await (await action())(ok({ precision: 'gps', reference: '' }) as never)
+    expect(inserted[0].reference).toBeNull()
+  })
+
+  describe('rua fora do dataset (streetId null)', () => {
+    const livre = (over: Record<string, unknown> = {}) =>
+      ok({ streetId: null, streetName: 'Calle Nueva', precision: 'gps', betweenStreets: 'lixo', number: '', ...over })
+
+    test('grava street_id null com o nome digitado (a marca para o dono achar a rua faltante)', async () => {
+      const inserted = fakeDb()
+      const saved = await (await action())(livre() as never)
+      expect(inserted[0]).toMatchObject({ street_id: null, street_name: 'Calle Nueva', precision: 'gps', between_streets: null, label: 'Calle Nueva' })
+      expect(saved.streetId).toBeNull()
+    })
+
+    test('exige referência mesmo com GPS', async () => {
+      const inserted = fakeDb()
+      await expect((await action())(livre({ reference: '' }) as never)).rejects.toThrow('invalid_reference')
+      expect(inserted).toEqual([])
+    })
+
+    test.each(['quadra', 'rua'])('exige ponto: precision "%s" sem rua conhecida é recusada', async (precision) => {
+      const inserted = fakeDb()
+      await expect((await action())(livre({ precision }) as never)).rejects.toThrow('invalid_precision')
+      expect(inserted).toEqual([])
+    })
+
+    test('exige o nome livre', async () => {
+      await expect((await action())(livre({ streetName: '' }) as never)).rejects.toThrow('invalid_street')
+    })
+  })
+})
+
+// =============================================================================================
+// settings['map.tile_url']: lida do PostgREST, validada, nunca embutida no código
+// =============================================================================================
+describe('fetchTileUrl', () => {
+  const carregar = async () => (await import('@/components/address/MapPin')).fetchTileUrl
+  const resposta = (rows: unknown, init: { ok?: boolean } = {}) =>
+    Promise.resolve({ ok: init.ok ?? true, json: () => Promise.resolve(rows) })
+
+  beforeEach(() => {
+    vi.resetModules() // o cache da URL é do módulo: cada teste começa sem ele
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projeto.supabase.test')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_teste')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  test('lê a linha pública map.tile_url com a chave publicável e devolve o modelo', async () => {
+    const fetchMock = vi.fn(() => resposta([{ value: 'https://tiles.exemplo.test/{z}/{x}/{y}.png' }]))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await (await carregar())()).toBe('https://tiles.exemplo.test/{z}/{x}/{y}.png')
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }]
+    expect(url).toContain('https://projeto.supabase.test/rest/v1/settings')
+    expect(url).toContain('key=eq.map.tile_url')
+    expect(url).toContain('is_public=eq.true')
+    expect(init.headers.apikey).toBe('sb_publishable_teste')
+  })
+
+  test('uma só leitura por sessão da página', async () => {
+    const fetchMock = vi.fn(() => resposta([{ value: 'https://t.exemplo.test/{z}/{x}/{y}.png' }]))
+    vi.stubGlobal('fetch', fetchMock)
+    const f = await carregar()
+    await f()
+    await f()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test.each([
+    ['http sem TLS', [{ value: 'http://t.exemplo.test/{z}/{x}/{y}.png' }]],
+    ['sem os marcadores {z}/{x}/{y}', [{ value: 'https://t.exemplo.test/tile.png' }]],
+    ['valor que não é texto', [{ value: { url: 'https://t.exemplo.test/{z}/{x}/{y}.png' } }]],
+    ['javascript:', [{ value: 'javascript:alert(1)//{z}{x}{y}' }]],
+    ['linha ausente', []],
+  ])('valor inválido vira "mapa indisponível" (null): %s', async (_n, rows) => {
+    vi.stubGlobal('fetch', vi.fn(() => resposta(rows)))
+    expect(await (await carregar())()).toBeNull()
+  })
+
+  test('resposta de erro do servidor vira null', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => resposta([], { ok: false })))
+    expect(await (await carregar())()).toBeNull()
+  })
+
+  test('falha de rede vira null e não fica gravada: abrir o mapa de novo tenta outra vez', async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('offline')).mockImplementation(() => resposta([{ value: 'https://t.exemplo.test/{z}/{x}/{y}.png' }]))
+    vi.stubGlobal('fetch', fetchMock)
+    const f = await carregar()
+    expect(await f()).toBeNull()
+    expect(await f()).toBe('https://t.exemplo.test/{z}/{x}/{y}.png')
+  })
+
+  test('sem as variáveis do Supabase não há leitura nem erro', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await (await carregar())()).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('detalhes do pino e do teclado', () => {
+  test('pino arrastado para longe da rua avisa, mas é intenção do cliente: continua valendo como "gps"', async () => {
+    const loadTileUrl = () => Promise.resolve('https://tiles.exemplo.test/{z}/{x}/{y}.png')
+    const { c } = await formComTeste({ loadTileUrl })
+    await click(blockRadios(c)[1])
+    await click(button(c, /marcar no mapa/i)!)
+    await flush()
+    await flush()
+    await act(async () => (spies.leafletProps!.onChange as (p: LatLng) => void)({ lat: -30.3, lng: -56.4 })) // ~10 km dali
+    expect(c.textContent).toMatch(/longe da rua escolhida/i)
+    await typeInto(refInput(c), 'casa')
+    await click(salvar(c))
+    await flush()
+    expect(spies.save.mock.calls[0][0].precision).toBe('gps')
+  })
+
+  test('Enter no campo de busca nunca envia o formulário (nem com a lista fechada)', async () => {
+    const c = await mount(createElement(AddressForm, { onDone: vi.fn(), loadDatasets: syntheticLoader }))
+    await focus(streetInput(c))
+    await flush()
+    await typeInto(streetInput(c), 'zzzzzz') // nada encontrado: a lista está fechada
+    const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    await act(async () => void streetInput(c).dispatchEvent(ev))
+    expect(ev.defaultPrevented).toBe(true)
   })
 })

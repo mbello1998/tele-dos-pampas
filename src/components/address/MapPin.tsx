@@ -58,6 +58,8 @@ const COPY = {
   'pt-BR': {
     title: 'Ponto exato (opcional)',
     help: 'A quadra já basta. Se quiser, marque o ponto exato da sua casa.',
+    titleRequired: 'Ponto da sua casa (obrigatório)',
+    helpRequired: 'Como a rua não está na lista, precisamos do ponto: use sua localização ou marque a casa no mapa.',
     gps: 'Usar minha localização',
     locating: 'Buscando sua localização…',
     openMap: 'Marcar no mapa',
@@ -79,6 +81,8 @@ const COPY = {
   'es-UY': {
     title: 'Punto exacto (opcional)',
     help: 'Con la cuadra alcanza. Si querés, marcá el punto exacto de tu casa.',
+    titleRequired: 'Punto de tu casa (obligatorio)',
+    helpRequired: 'Como la calle no está en la lista, necesitamos el punto: usá tu ubicación o marcá la casa en el mapa.',
     gps: 'Usar mi ubicación',
     locating: 'Buscando tu ubicación…',
     openMap: 'Marcar en el mapa',
@@ -104,7 +108,10 @@ type MapState = 'closed' | 'loading' | 'ready' | 'unavailable'
 
 type Props = {
   locale: Locale
-  street: Street
+  /** `null` quando a rua não está no dataset: não há de onde conferir a distância. */
+  street: Street | null
+  /** Rua fora do dataset: o ponto deixa de ser opcional (sem ele não há coordenada). */
+  required?: boolean
   /** Onde o pino nasce: o meio da quadra escolhida (ou um ponto sobre a rua). */
   center: LatLng
   value: PinFix | null
@@ -114,7 +121,7 @@ type Props = {
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
-export function MapPin({ locale, street, center, value, onChange, loadTileUrl = fetchTileUrl }: Props) {
+export function MapPin({ locale, street, required = false, center, value, onChange, loadTileUrl = fetchTileUrl }: Props) {
   const c = COPY[locale]
   const [mapState, setMapState] = useState<MapState>('closed')
   const [tileUrl, setTileUrl] = useState<string | null>(null)
@@ -137,7 +144,7 @@ export function MapPin({ locale, street, center, value, onChange, loadTileUrl = 
         setLocating(false)
         const p = { lat: round6(pos.coords.latitude), lng: round6(pos.coords.longitude) }
         if (pos.coords.accuracy > MAX_ACCURACY_M) return setNote({ imprecise: Math.round(pos.coords.accuracy) })
-        if (distanceToStreetMeters(street, p) > FAR_FROM_STREET_M) return setNote('far')
+        if ((street ? distanceToStreetMeters(street, p) : 0) > FAR_FROM_STREET_M) return setNote('far')
         onChange({ ...p, source: 'gps' })
       },
       (err) => {
@@ -163,7 +170,7 @@ export function MapPin({ locale, street, center, value, onChange, loadTileUrl = 
 
   const placed = (p: LatLng) => {
     const point = { lat: round6(p.lat), lng: round6(p.lng) }
-    setNote(distanceToStreetMeters(street, point) > FAR_FROM_STREET_M ? 'pinFar' : null)
+    setNote((street ? distanceToStreetMeters(street, point) : 0) > FAR_FROM_STREET_M ? 'pinFar' : null)
     onChange({ ...point, source: 'pin' })
   }
 
@@ -174,9 +181,9 @@ export function MapPin({ locale, street, center, value, onChange, loadTileUrl = 
   return (
     <section className="grid gap-2" aria-labelledby={titleId}>
       <h3 id={titleId} className="text-base font-semibold">
-        {c.title}
+        {required ? c.titleRequired : c.title}
       </h3>
-      <p className="text-sm text-white/70">{c.help}</p>
+      <p className="text-sm text-white/70">{required ? c.helpRequired : c.help}</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={btn} onClick={useMyLocation} disabled={locating}>
           {locating ? c.locating : c.gps}

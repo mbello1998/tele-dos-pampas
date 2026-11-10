@@ -4,6 +4,8 @@
 // o que decide se um endereço é salvável é o que está aqui. Regras que importam para quem entrega:
 //   - lat/lng sempre presentes e dentro da região das duas cidades (o motor de preço não cota sem eles);
 //   - precision só 'gps' | 'quadra' | 'rua', e sem GPS a referência em texto é obrigatória;
+//   - rua fora do dataset (streetId null): só com pino/GPS (precision 'gps') E com referência, porque
+//     sem rua conhecida são as únicas coisas que o entregador terá;
 //   - cidade e país coerentes entre si (a moeda e a taxa de travessia decorrem do país);
 //   - o dono da linha é sempre o usuário da sessão, nunca algo que veio no corpo do pedido.
 import { createClient } from '@/lib/supabase/server'
@@ -13,7 +15,12 @@ export type AddressPrecision = 'gps' | 'quadra' | 'rua'
 export type AddressInput = {
   /** Apelido ("casa", "mãe"). Vazio vira "<rua>, <número>". */
   label: string
-  streetId: string
+  /**
+   * Id da rua no dataset OSM, ou `null` quando o cliente mora numa rua que o OSM não tem ("não encontrei
+   * minha rua"). `street_id is null` é a marca que o dono usa para achar esses endereços e pedir a rua
+   * no OpenStreetMap; nesse caso `streetName` é o texto livre digitado.
+   */
+  streetId: string | null
   streetName: string
   /** Vazio quando a casa não tem número na parede. */
   number: string
@@ -65,12 +72,14 @@ function validate(input: AddressInput): AddressInput {
   if (input.country !== COUNTRY_OF_CITY[city]) throw new Error('invalid_country')
   if (!PRECISIONS.includes(input.precision)) throw new Error('invalid_precision')
 
-  const streetId = text(input.streetId, 'streetId', MAX.streetId)
+  const unlisted = input.streetId === null
+  const streetId = unlisted ? null : text(input.streetId, 'streetId', MAX.streetId)
   const streetName = text(input.streetName, 'streetName', MAX.streetName)
-  if (!streetId || !streetName) throw new Error('invalid_street')
+  if ((!unlisted && !streetId) || !streetName) throw new Error('invalid_street')
+  if (unlisted && input.precision !== 'gps') throw new Error('invalid_precision')
 
   const reference = text(input.reference, 'reference', MAX.reference)
-  if (input.precision !== 'gps' && reference === '') throw new Error('invalid_reference')
+  if ((input.precision !== 'gps' || unlisted) && reference === '') throw new Error('invalid_reference')
 
   const number = text(input.number, 'number', MAX.number)
   return {
@@ -79,7 +88,7 @@ function validate(input: AddressInput): AddressInput {
     streetName,
     number,
     complement: text(input.complement, 'complement', MAX.complement),
-    betweenStreets: text(input.betweenStreets, 'betweenStreets', MAX.between),
+    betweenStreets: unlisted ? '' : text(input.betweenStreets, 'betweenStreets', MAX.between),
     reference,
     city,
     country: input.country,
@@ -112,7 +121,7 @@ const COLUMNS =
 const toAddress = (r: Row): Address => ({
   id: r.id,
   label: r.label ?? '',
-  streetId: r.street_id ?? '',
+  streetId: r.street_id,
   streetName: r.street_name ?? '',
   number: r.number ?? '',
   complement: r.complement ?? '',
