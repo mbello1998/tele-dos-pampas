@@ -138,7 +138,7 @@ test('a comissão da loja não aparece em nenhuma resposta ao cliente', async ()
   const respostas: string[] = []
   const vigia = async (r: import('@playwright/test').Response) => {
     const tipo = r.headers()['content-type'] ?? ''
-    if (r.url().includes('localhost') && /text/html|text/x-component/.test(tipo)) respostas.push(await r.text().catch(() => ''))
+    if (r.url().includes('localhost') && tipo.includes('text/html') || tipo.includes('text/x-component')) respostas.push(await r.text().catch(() => ''))
   }
   page.on('response', vigia)
   await page.goto('/lojas')
