@@ -24,11 +24,18 @@ export function convertBrlToUyu(brl: number, rate: number, spreadPct: number): n
   assertFinite('brl', brl)
   assertFinite('rate', rate)
   assertFinite('spreadPct', spreadPct)
+  if (brl < 0) {
+    throw new RangeError(`brl não pode ser negativo, recebido ${brl}`)
+  }
   if (rate <= 0) {
     throw new RangeError(`rate deve ser positiva, recebido ${rate}`)
   }
 
   const effectiveRate = rate * (1 + spreadPct / 100)
+  if (effectiveRate <= 0) {
+    throw new RangeError(`taxa efetiva com spread ${spreadPct}% deve ser positiva`)
+  }
+
   return Math.ceil(trimFloatNoise(brl * effectiveRate))
 }
 

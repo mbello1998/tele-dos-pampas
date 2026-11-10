@@ -19,6 +19,12 @@ describe('convertBrlToUyu', () => {
     expect(() => convertBrlToUyu(10, 0, 5)).toThrow(RangeError)
     expect(() => convertBrlToUyu(10, 7.8, Number.POSITIVE_INFINITY)).toThrow(RangeError)
   })
+
+  test('rejeita valor BRL negativo e spread que zera ou inverte a taxa', () => {
+    expect(() => convertBrlToUyu(-10, 7.8, 5)).toThrow(RangeError)
+    expect(() => convertBrlToUyu(10, 7.8, -100)).toThrow(RangeError)
+    expect(() => convertBrlToUyu(10, 7.8, -150)).toThrow(RangeError)
+  })
 })
 
 describe('formatMoney', () => {
