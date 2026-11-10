@@ -73,18 +73,33 @@ describe('políticas RLS', () => {
         db,
         `select p.proname, p.prosecdef, p.proconfig, pg_get_function_result(p.oid) rt from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'public' and p.proname in ('current_role', 'is_admin', 'audit_write')`,
+         where n.nspname = 'public' and p.proname in ('app_role', 'is_admin', 'audit_write')`,
       )
-      expect(r.map((x) => x.proname).sort()).toEqual(['audit_write', 'current_role', 'is_admin'])
+      expect(r.map((x) => x.proname).sort()).toEqual(['app_role', 'audit_write', 'is_admin'])
       for (const f of r) {
         expect(f.prosecdef, f.proname).toBe(true)
         expect((f.proconfig ?? []).join(','), f.proname).toMatch(/search_path=""|search_path=''/)
       }
-      expect(r.find((x) => x.proname === 'current_role')!.rt).toBe('user_role')
+      expect(r.find((x) => x.proname === 'app_role')!.rt).toBe('user_role')
       expect(r.find((x) => x.proname === 'is_admin')!.rt).toBe('boolean')
     })
 
-    test('nenhuma policy usa current_role sem qualificar (a palavra-chave devolve o papel do Postgres)', async () => {
+    test('a função current_role() não existe mais e nenhum corpo de função ou policy menciona o nome', async () => {
+      const f = await asOwner(
+        db,
+        `select n.nspname, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname in ('public', 'private') and (p.proname = 'current_role' or p.prosrc ~* 'current_role')`,
+      )
+      expect(f).toEqual([])
+      const pol = await asOwner(
+        db,
+        `select policyname from pg_policies where schemaname = 'public'
+         and regexp_replace(coalesce(qual, '') || coalesce(with_check, ''), 'AS "current_role"', '', 'g') ~* 'current_role'`,
+      )
+      expect(pol).toEqual([])
+    })
+
+    test('nenhuma policy usa a palavra-chave current_role (devolveria o papel do Postgres, sempre diferente de admin)', async () => {
       const r = await asOwner<{ policyname: string; q: string | null; w: string | null }>(
         db,
         `select policyname, qual q, with_check w from pg_policies where schemaname = 'public'`,
@@ -126,7 +141,9 @@ describe('políticas RLS', () => {
     const who: Record<K, Who> = { anon: 'anon', client: clientA, courier: courierQ1, merchant: merchant1, fleet: fleet1, admin }
     // table [, where] -> roles that must see at least one row (fixtures put at least one row where it is expected)
     const rows: [string, string, K[]][] = [
-      ['merchants', 'true', ['client', 'merchant', 'admin']],
+      ['merchants', 'true', ['merchant', 'admin']], // clients read merchants_public, never the base table
+      ['merchants_public', 'true', ['client']],
+      ['fleet_orders', 'true', ['fleet']],
       ['merchant_hours', 'true', ['client', 'merchant', 'admin']],
       ['catalog_categories', 'true', ['client', 'merchant', 'admin']],
       ['catalog_items', 'true', ['client', 'merchant', 'admin']],
@@ -136,7 +153,7 @@ describe('políticas RLS', () => {
       ['fleets', 'true', ['fleet', 'admin']],
       ['addresses', 'true', ['client', 'admin']],
       ['zones', 'true', ['client', 'courier', 'merchant', 'fleet', 'admin']],
-      ['orders', 'true', ['client', 'courier', 'merchant', 'fleet', 'admin']],
+      ['orders', 'true', ['client', 'courier', 'merchant', 'admin']], // fleet reads fleet_orders, never orders
       ['order_items', 'true', ['client', 'courier', 'merchant', 'admin']], // never fleet
       ['order_events', 'true', ['client', 'courier', 'merchant', 'fleet', 'admin']],
       ['courier_positions', 'true', ['courier', 'admin']],
@@ -254,10 +271,19 @@ describe('políticas RLS', () => {
       expect(p.role).toBe('client')
     })
 
-    test('client lê lojas aprovadas e o cardápio delas, mas não loja pendente; não escreve no cardápio', async () => {
-      const shops = await readAs(db, clientA, 'select id from merchants')
+    test('client lê lojas aprovadas só pela view merchants_public (sem comissão) e o cardápio delas, mas não loja pendente; não escreve no cardápio', async () => {
+      const shops = await readAs(db, clientA, 'select id from merchants_public')
       expect(shops).toEqual(expect.arrayContaining([ID.shop1, ID.shop2, ID.shopOrphan]))
       expect(shops).not.toContain(ID.shopPending)
+      // a tabela base é inacessível ao client; a view não tem a coluna de comissão nem de status/dono
+      expect(await readAs(db, clientA, 'select id from merchants')).toEqual([])
+      expect(await count(clientA, 'merchants', 'commission_pct > 0')).toBe(0)
+      const cols = await asOwner<{ column_name: string }>(
+        db, `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'merchants_public'`)
+      for (const c of ['commission_pct', 'status', 'owner_id']) expect(cols.map((x) => x.column_name)).not.toContain(c)
+      await actAs(db, clientA)
+      const peek = await attempt(db, 'select commission_pct from merchants_public')
+      expect(!peek.ok && peek.code).toBe('42703') // undefined_column
       const items = await readAs(db, clientA, 'select id from catalog_items')
       expect(items).toEqual(expect.arrayContaining([ID.item1, ID.item2, ID.itemOrphan]))
       expect(items).not.toContain(ID.itemPending)
@@ -265,6 +291,20 @@ describe('políticas RLS', () => {
       expectForbidden(await attempt(db, `insert into catalog_items (merchant_id, name, price_brl) values ($1, 'x', 1)`, [ID.shop1]), 'insert item')
       expectRefused(await attempt(db, `update catalog_items set price_brl = 0.01 where id = $1`, [ID.item1]), 'update item')
       expectRefused(await attempt(db, `update merchants set status = 'approved', commission_pct = 0 where id = $1`, [ID.shop1]), 'update loja')
+      // a view é somente leitura: nenhum papel escreve por ela
+      expectForbidden(await attempt(db, `update merchants_public set name = 'x'`), 'update view')
+      expectForbidden(await attempt(db, `delete from merchants_public`), 'delete view')
+    })
+
+    test('merchants_public: só client lê; fleet, courier, merchant, admin e anon recebem zero linhas ou erro', async () => {
+      for (const w of [courierQ1, merchant1, fleet1, admin, { uid: ID.pendingCourier }]) {
+        expect(await count(w, 'merchants_public'), JSON.stringify(w)).toBe(0)
+      }
+      await actAs(db, 'anon')
+      expectForbidden(await attempt(db, 'select * from merchants_public'), 'anon')
+      // loja suspensa some da vitrine
+      await asOwner(db, `update merchants set status = 'suspended' where id = $1`, [ID.shop1])
+      expect(await readAs(db, clientA, 'select id from merchants_public')).not.toContain(ID.shop1)
     })
 
     test('client lê os itens e eventos do próprio pedido, nunca os de outro', async () => {
@@ -444,28 +484,70 @@ describe('políticas RLS', () => {
 
   // -------------------------------------------------------------------- fleet
   describe('fleet', () => {
-    test('fleet lê pedidos atendidos pela própria frota', async () => {
-      expect(await orderIds(fleet1)).toEqual([ID.oFleet1])
-      expect(await orderIds(fleet2)).toEqual([]) // oQueueA é fila, sem frota
+    test('fleet lê pedidos atendidos pela própria frota (pela view fleet_orders)', async () => {
+      expect(await readAs(db, fleet1, 'select id from fleet_orders')).toEqual([ID.oFleet1])
+      expect(await readAs(db, fleet2, 'select id from fleet_orders')).toEqual([]) // oQueueA é fila, sem frota
       await asOwner(db, `update orders set fleet_id = $1 where id = $2`, [ID.fleet2, ID.oQueueA])
-      expect(await orderIds(fleet2)).toEqual([ID.oQueueA])
-      expect(await orderIds(fleet1)).toEqual([ID.oFleet1])
+      expect(await readAs(db, fleet2, 'select id from fleet_orders')).toEqual([ID.oQueueA])
+      expect(await readAs(db, fleet1, 'select id from fleet_orders')).toEqual([ID.oFleet1])
+      // eventos (linha do tempo, sem dinheiro) dos pedidos da frota continuam legíveis; os de outra frota não
+      expect(await readAs(db, fleet1, 'select order_id from order_events', 'order_id')).toEqual([ID.oFleet1])
+      expect(await readAs(db, fleet2, 'select order_id from order_events', 'order_id')).toEqual([])
     })
 
-    test('fleet NÃO lê faturamento nem catalog_items de merchant (isolamento financeiro)', async () => {
+    test('fleet NÃO lê total_brl, itens, comissão nem nada que permita reconstruir o faturamento da loja', async () => {
+      // 1. a tabela orders é invisível à frota, mesmo para o pedido que ela entregou
+      expect(await orderIds(fleet1)).toEqual([])
+      expect(await count(fleet1, 'orders', `id = '${ID.oFleet1}'`)).toBe(0)
+      // 2. a view não tem as colunas de dinheiro do pedido
+      const cols = (await asOwner<{ column_name: string }>(
+        db, `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'fleet_orders'`)).map((c) => c.column_name)
+      for (const c of ['total_brl', 'total_charged', 'pricing_breakdown', 'fx_rate_used', 'fx_rate_id', 'pricing_rule_id', 'client_id', 'merchant_id', 'payment_method', 'change_for', 'currency_charged']) {
+        expect(cols, c).not.toContain(c)
+      }
+      await actAs(db, fleet1)
+      for (const col of ['total_brl', 'pricing_breakdown', 'total_charged', 'merchant_id']) {
+        const a = await attempt(db, `select ${col} from fleet_orders`)
+        expect(!a.ok && a.code, col).toBe('42703')
+      }
+      // 3. para um pedido de comida (itens 40 + comissão 5 + base 10, total 50) a view devolve só a taxa de entrega
+      const row = (await db.query(`select * from fleet_orders where id = $1`, [ID.oFleet1])).rows[0]
+      expect(Number(row.delivery_fee_brl)).toBe(10)
+      expect(JSON.stringify(row)).not.toMatch(/items_subtotal|commission|total/i)
+      // 4. forma de array ({key, labelKey, amountBrl}) e chaves desconhecidas: só entram as linhas de entrega
+      await asOwner(db, `update orders set pricing_breakdown = $1::jsonb where id = $2`, [
+        JSON.stringify([
+          { key: 'base', labelKey: 'x', amountBrl: 10 }, { key: 'night', labelKey: 'x', amountBrl: 3 },
+          { key: 'cross_border', labelKey: 'x', amountBrl: 8 }, { key: 'items_subtotal', labelKey: 'x', amountBrl: 40 },
+          { key: 'commission', labelKey: 'x', amountBrl: 5 }, { key: 'total', labelKey: 'x', amountBrl: 66 },
+          { key: 'linha_nova_desconhecida', labelKey: 'x', amountBrl: 999 },
+        ]), ID.oFleet1])
+      await actAs(db, fleet1)
+      expect(Number((await db.query(`select delivery_fee_brl from fleet_orders where id = $1`, [ID.oFleet1])).rows[0].delivery_fee_brl)).toBe(21)
+      // 5. a view é somente leitura
+      expectForbidden(await attempt(db, `update fleet_orders set status = 'entregue'`), 'update view')
+      expectForbidden(await attempt(db, `delete from fleet_orders`), 'delete view')
+      expectForbidden(await attempt(db, `insert into fleet_orders (id) values (gen_random_uuid())`), 'insert view')
+      // 6. as tabelas do faturamento da loja continuam fechadas
       for (const t of [
-        'merchants', 'merchant_hours', 'catalog_categories', 'catalog_items', 'item_option_groups', 'item_options',
-        'order_items', // itens vendidos = faturamento da loja, mesmo nos pedidos que a frota entregou
-        'audit_log',
+        'merchants', 'merchants_public', 'merchant_hours', 'catalog_categories', 'catalog_items', 'item_option_groups', 'item_options',
+        'order_items', 'audit_log',
       ]) {
         expect(await count(fleet1, t), t).toBe(0)
       }
-      // o pedido que a frota entregou está visível, mas sem as linhas de itens
-      expect(await orderIds(fleet1)).toContain(ID.oFleet1)
       await actAs(db, fleet1)
+      expectRefused(await attempt(db, `update orders set total_brl = 0.01 where id = $1`, [ID.oFleet1]), 'update orders')
       expectRefused(await attempt(db, `update merchants set commission_pct = 0 where id = $1`, [ID.shop1]), 'update merchants')
       expectRefused(await attempt(db, `update catalog_items set price_brl = 0.01 where id = $1`, [ID.item1]), 'update catalog')
       expectForbidden(await attempt(db, `insert into catalog_items (merchant_id, name, price_brl) values ($1, 'x', 1)`, [ID.shop1]), 'insert catalog')
+    })
+
+    test('fleet_orders: courier, merchant, client, admin e anon não leem; frota suspensa não lê', async () => {
+      for (const w of [courierQ1, merchant1, clientA, admin]) expect(await count(w, 'fleet_orders'), JSON.stringify(w)).toBe(0)
+      await actAs(db, 'anon')
+      expectForbidden(await attempt(db, 'select * from fleet_orders'), 'anon')
+      await asOwner(db, `update fleets set status = 'suspended' where id = $1`, [ID.fleet1])
+      expect(await count(fleet1, 'fleet_orders')).toBe(0)
     })
 
     test('fleet lê só os próprios couriers e seus perfis; não os de outra frota nem autônomos', async () => {
@@ -492,7 +574,8 @@ describe('políticas RLS', () => {
 
     test('frota suspensa não lê pedidos nem couriers (mas vê o próprio cadastro)', async () => {
       await asOwner(db, `update fleets set status = 'suspended' where id = $1`, [ID.fleet1])
-      expect(await orderIds(fleet1)).toEqual([])
+      expect(await count(fleet1, 'fleet_orders')).toBe(0)
+      expect(await count(fleet1, 'order_events')).toBe(0)
       expect(await readAs(db, fleet1, 'select profile_id from couriers', 'profile_id')).toEqual([])
       expect(await readAs(db, fleet1, 'select id from fleets')).toEqual([ID.fleet1])
     })
@@ -523,12 +606,27 @@ describe('políticas RLS', () => {
     test('admin com perfil bloqueado perde todo o poder (papel sai de profiles.status)', async () => {
       const blocked: Who = { uid: ID.blockedAdmin }
       await actAs(db, blocked)
-      expect((await db.query('select public.is_admin() a, public.current_role() r')).rows[0]).toEqual({ a: false, r: null })
+      expect((await db.query('select public.is_admin() a, public.app_role() r')).rows[0]).toEqual({ a: false, r: null })
       expect(await count(blocked, 'merchants')).toBe(0)
       expect(await count(blocked, 'audit_log')).toBe(0)
       expect(await readAs(db, blocked, 'select id from profiles')).toEqual([ID.blockedAdmin]) // só o próprio
       await actAs(db, blocked)
       expectRefused(await attempt(db, `update pricing_rules set base_fare_brl = 99`), 'pricing_rules')
+    })
+
+    test('perfil pending ou blocked lê o PRÓPRIO profiles (para a tela de "aguardando aprovação") e mais nada', async () => {
+      const pending: Who = { uid: ID.pendingCourier }
+      expect(await readAs(db, pending, 'select id from profiles')).toEqual([ID.pendingCourier])
+      expect(await readAs(db, { uid: ID.blockedAdmin }, 'select id from profiles')).toEqual([ID.blockedAdmin])
+      for (const t of ['couriers', 'orders', 'merchants', 'merchants_public', 'fleets', 'addresses', 'zones', 'fx_rates', 'status_transitions', 'pricing_rules', 'audit_log', 'order_events', 'courier_positions']) {
+        expect(await count(pending, t), `pending ${t}`).toBe(0)
+      }
+      await actAs(db, pending)
+      expectRefused(await attempt(db, `update profiles set full_name = 'x' where id = $1`, [ID.pendingCourier]), 'pending não edita')
+      expectRefused(await attempt(db, `update profiles set status = 'active' where id = $1`, [ID.pendingCourier]), 'não se auto-aprova')
+      // ao ser ativado pelo admin, o mesmo usuário passa a ter o papel
+      await asOwner(db, `update profiles set status = 'active' where id = $1`, [ID.pendingCourier])
+      expect(await count(pending, 'couriers')).toBeGreaterThan(0)
     })
 
     test('cliente bloqueado não lê os próprios pedidos', async () => {
@@ -618,7 +716,7 @@ describe('políticas RLS', () => {
       await actAs(db, admin)
       const up = await attempt(db, `update pricing_rules set night_surcharge_brl = 4 where city = 'quarai' and kind = 'food' and valid_to is null`)
       expect(up.ok && up.rowCount).toBe(1)
-      expect((await attempt(db, `insert into fx_rates (rate, source) values (7.9, 'manual')`)).ok).toBe(true)
+      expect((await attempt(db, `insert into fx_rates (rate, source, valid_for_date) values (7.9, 'manual', '2030-01-02')`)).ok).toBe(true)
       expect((await attempt(db, `update fx_rates set rate = 8 where id = $1`, [ID.fx1])).ok).toBe(true)
     })
 
@@ -657,7 +755,7 @@ describe('políticas RLS', () => {
     test('papel vem de profiles, não de JWT: claim role forjado é ignorado', async () => {
       const forger: Who = { uid: ID.clientA, claims: forged }
       await actAs(db, forger)
-      expect((await db.query('select public.current_role() r, public.is_admin() a')).rows[0]).toEqual({ r: 'client', a: false })
+      expect((await db.query('select public.app_role() r, public.is_admin() a')).rows[0]).toEqual({ r: 'client', a: false })
       // nenhum poder de admin
       expect(await count(forger, 'audit_log')).toBe(0)
       expect(await readAs(db, forger, 'select id from profiles')).toEqual([ID.clientA])
@@ -672,7 +770,7 @@ describe('políticas RLS', () => {
     test('um claim forjado de service_role ou de outro sub também não muda nada; o que vale é o sub e o profiles', async () => {
       const f2: Who = { uid: ID.clientA, claims: { ...forged, role: 'service_role', sub_role: 'admin' } }
       await actAs(db, f2)
-      expect((await db.query('select public.current_role() r')).rows[0].r).toBe('client')
+      expect((await db.query('select public.app_role() r')).rows[0].r).toBe('client')
       expect(await count(f2, 'audit_log')).toBe(0)
       // controle positivo: o MESMO token passa a valer como admin quando o banco (e só o banco) promove o perfil
       await asOwner(db, `update profiles set role = 'admin' where id = $1`, [ID.clientA])
@@ -747,6 +845,42 @@ describe('políticas RLS', () => {
       expect(r[0].after.role).toBe('merchant')
     })
 
+    test('toggle operacional de couriers (is_online) NÃO entra em audit_log; mudança real, insert e delete entram', async () => {
+      const n = async () => (await asOwner<{ n: number }>(db, `select count(*)::int n from audit_log where table_name = 'couriers' and record_id = $1 and action = 'UPDATE'`, [ID.courierQ1]))[0].n
+      const base = await n()
+      await actAs(db, courierQ1)
+      expect((await attempt(db, `update couriers set is_online = true where profile_id = $1`, [ID.courierQ1])).ok).toBe(true)
+      expect((await attempt(db, `update couriers set is_online = false where profile_id = $1`, [ID.courierQ1])).ok).toBe(true)
+      expect(await n()).toBe(base) // dois toggles, zero linhas de auditoria
+      await actAs(db, courierQ1)
+      expect((await attempt(db, `update couriers set plate = 'XYZ9K88' where profile_id = $1`, [ID.courierQ1])).ok).toBe(true)
+      expect(await n()).toBe(base + 1)
+      await actAs(db, courierQ1)
+      expect((await attempt(db, `update couriers set is_online = true, vehicle = 'bike' where profile_id = $1`, [ID.courierQ1])).ok).toBe(true)
+      expect(await n()).toBe(base + 2) // toggle misturado com mudança real continua registrado
+      await actAs(db, admin)
+      expect((await attempt(db, `update couriers set status = 'suspended' where profile_id = $1`, [ID.courierQ1])).ok).toBe(true)
+      expect(await n()).toBe(base + 3)
+      expect((await attempt(db, `delete from couriers where profile_id = $1`, [ID.pendingCourier])).ok).toBe(true)
+      expect((await asOwner(db, `select 1 from audit_log where table_name = 'couriers' and record_id = $1 and action = 'DELETE'`, [ID.pendingCourier])).length).toBe(1)
+      // a lista de ignorados é por tabela: is_available de catalog_items continua auditado
+      await actAs(db, merchant1)
+      expect((await attempt(db, `update catalog_items set is_available = false where id = $1`, [ID.item1])).ok).toBe(true)
+      expect((await asOwner(db, `select 1 from audit_log where table_name = 'catalog_items' and record_id = $1 and action = 'UPDATE'`, [ID.item1])).length).toBe(1)
+    })
+
+    test('mudança de phone em profiles continua auditada (dado pessoal), legível só pelo admin', async () => {
+      await actAs(db, clientA)
+      expect((await attempt(db, `update profiles set phone = '+5555999990000' where id = $1`, [ID.clientA])).ok).toBe(true)
+      const r = await asOwner<{ actor_id: string; before: Record<string, unknown>; after: Record<string, unknown> }>(
+        db, `select actor_id, before, after from audit_log where table_name = 'profiles' and record_id = $1 and action = 'UPDATE'`, [ID.clientA])
+      expect(r).toHaveLength(1)
+      expect(r[0].actor_id).toBe(ID.clientA)
+      expect(r[0].before.phone).toBeNull()
+      expect(r[0].after.phone).toBe('+5555999990000')
+      expect(await count(clientA, 'audit_log')).toBe(0)
+    })
+
     test('audit_log não é alterável nem apagável por nenhum papel, inclusive admin', async () => {
       const logged = await asOwner<{ id: string }>(db, `select id::text from audit_log order by id limit 1`)
       expect(logged.length).toBe(1)
@@ -787,7 +921,7 @@ describe('políticas RLS', () => {
       await asOwner(db, `create policy tmp_oops on public.orders for update to authenticated using (true) with check (true)`)
       await asOwner(db, `create policy tmp_oops on public.profiles for update to authenticated using (true) with check (true)`)
       await asOwner(db, `create policy tmp_oops on public.merchants for update to authenticated using (true) with check (true)`)
-      for (const w of [merchant1, courierQ1, fleet1]) {
+      for (const w of [merchant1, courierQ1]) {
         await actAs(db, w)
         for (const set of ['total_brl = 0.01', "pricing_breakdown = '{}'::jsonb", 'fx_rate_used = 1', "status = 'entregue'"]) {
           expectForbidden(await attempt(db, `update orders set ${set} where id = $1`, [ID.oFleet1]), set)
@@ -827,8 +961,8 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
   const created: { id: string; email: string; password: string; token?: string }[] = []
   const orderIds_: string[] = []
   let committer: Client
-  let A: (typeof created)[number], C: (typeof created)[number], B: (typeof created)[number]
-  let orderA: string, orderC: string
+  let A: (typeof created)[number], C: (typeof created)[number], B: (typeof created)[number], D: (typeof created)[number]
+  let orderA: string, orderC: string, orderF: string, fleetId: string
   let pricingBefore: string
 
   const decode = (jwt: string) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString())
@@ -878,6 +1012,7 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     const ids = created.map((u) => u.id)
     if (ids.length === 0) return
     await committer.query('delete from public.orders where client_id = any($1::uuid[])', [ids])
+    await committer.query('delete from public.fleets where owner_id = any($1::uuid[])', [ids])
     for (const u of created) {
       await fetch(`${URL_}/auth/v1/admin/users/${u.id}`, { method: 'DELETE', headers: { apikey: SECRET, Authorization: `Bearer ${SECRET}` } })
     }
@@ -890,11 +1025,19 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     committer = await connect()
     try {
       pricingBefore = (await committer.query(`select md5(string_agg(p::text, '|' order by p.id)) h from public.pricing_rules p`)).rows[0].h
-      ;[A, C, B] = [await createUser('a'), await createUser('c'), await createUser('b')]
+      ;[A, C, B, D] = [await createUser('a'), await createUser('c'), await createUser('b'), await createUser('d')]
       await committer.query(
-        `insert into public.profiles (id, role, full_name) values ($1, 'client', 'E2E A'), ($2, 'client', 'E2E C'), ($3, 'admin', 'E2E Admin')`,
-        [A.id, C.id, B.id],
+        `insert into public.profiles (id, role, full_name) values ($1, 'client', 'E2E A'), ($2, 'client', 'E2E C'), ($3, 'admin', 'E2E Admin'), ($4, 'fleet', 'E2E Fleet')`,
+        [A.id, C.id, B.id, D.id],
       )
+      fleetId = (await committer.query(
+        `insert into public.fleets (owner_id, name, city, status) values ($1, 'E2E Tele', 'quarai', 'approved') returning id`, [D.id])).rows[0].id
+      // a food order served by D's fleet: total 50 = delivery 10 + items 40, commission 5 (merchant revenue)
+      orderF = (await committer.query(
+        `insert into public.orders (kind, client_id, fleet_id, pickup_address, dropoff_address, total_brl, total_charged, payment_method, status, pricing_breakdown)
+         values ('food', $1, $2, '{"city":"quarai"}', '{"city":"quarai"}', 50.00, 50.00, 'pix', 'coletado',
+                 '{"base": 10, "items_subtotal": 40, "commission": 5, "total": 50}') returning id`,
+        [A.id, fleetId])).rows[0].id
       const ins = (client: string) =>
         committer.query(
           `insert into public.orders (kind, client_id, pickup_address, dropoff_address, total_brl, total_charged, payment_method, status)
@@ -903,8 +1046,8 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
         )
       orderA = (await ins(A.id)).rows[0].id
       orderC = (await ins(C.id)).rows[0].id
-      orderIds_.push(orderA, orderC)
-      for (const u of [A, C, B]) u.token = await signIn(u)
+      orderIds_.push(orderA, orderC, orderF)
+      for (const u of [A, C, B, D]) u.token = await signIn(u)
     } catch (e) {
       await cleanup()
       await committer.end()
@@ -918,10 +1061,11 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
         `select (select count(*)::int from public.profiles where id = any($1::uuid[])) p,
                 (select count(*)::int from public.orders where id = any($2::uuid[])) o,
                 (select count(*)::int from public.audit_log where table_name = 'profiles' and record_id = any($3::text[])) a,
-                (select count(*)::int from auth.users where id = any($1::uuid[])) u`,
+                (select count(*)::int from auth.users where id = any($1::uuid[])) u,
+                (select count(*)::int from public.fleets where owner_id = any($1::uuid[])) f`,
         [created.map((u) => u.id), orderIds_, created.map((u) => u.id)],
       )
-      expect(left.rows[0]).toEqual({ p: 0, o: 0, a: 0, u: 0 })
+      expect(left.rows[0]).toEqual({ p: 0, o: 0, a: 0, u: 0, f: 0 })
       const h = (await committer.query(`select md5(string_agg(p::text, '|' order by p.id)) h from public.pricing_rules p`)).rows[0].h
       expect(h).toBe(pricingBefore)
     } finally {
@@ -946,7 +1090,7 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     expect(prof.status).toBe(200)
     expect(prof.json).toEqual([{ id: A.id, role: 'client' }])
     const ord = await rest('orders?select=id', A.token!)
-    expect(ord.json).toEqual([{ id: orderA }])
+    expect(ord.json.map((r: { id: string }) => r.id).sort()).toEqual(sorted(orderA, orderF))
     expect((await rest(`orders?id=eq.${orderC}&select=id`, A.token!)).json).toEqual([])
     const money = await rest(`orders?id=eq.${orderA}`, A.token!, { method: 'PATCH', body: { total_brl: 0.01 } })
     expect(money.status).toBe(403)
@@ -978,6 +1122,7 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     expect((await rest('audit_log?select=id', forgedToken)).json).toEqual([]) // ...e não vale nada
     expect((await rest('profiles?select=id', forgedToken)).json).toEqual([{ id: C.id }])
     expect((await rest('orders?select=id', forgedToken)).json).toEqual([{ id: orderC }])
+    expect((await rest('merchants?select=id,commission_pct', forgedToken)).json).toEqual([])
     const pr = await rest('pricing_rules?city=eq.quarai', forgedToken, { method: 'PATCH', body: { base_fare_brl: 0.01 }, prefer: 'return=representation' })
     expect(pr.json).toEqual([])
     const ins = await rest('pricing_rules', forgedToken, {
@@ -997,5 +1142,54 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     expect(ords.json.map((r: { id: string }) => r.id).sort()).toEqual(sorted(orderA, orderC))
     const profs = await rest(`profiles?select=id&id=in.(${A.id},${C.id},${B.id})`, B.token!)
     expect(profs.json).toHaveLength(3)
+  })
+
+  test('client: vitrine só pela view merchants_public, sem comissão', async () => {
+    const view = await rest('merchants_public?select=id,name,is_open_manual', A.token!)
+    expect(view.status).toBe(200)
+    expect(view.json.length).toBeGreaterThanOrEqual(2) // as duas lojas de exemplo aprovadas
+    const peek = await rest('merchants_public?select=commission_pct', A.token!)
+    expect(peek.status).toBe(400)
+    expect(peek.json.code).toBe('42703')
+    expect((await rest('merchants?select=id,commission_pct', A.token!)).json).toEqual([])
+    const w = await rest('merchants_public?name=like.*', A.token!, { method: 'PATCH', body: { name: 'x' } })
+    expect(w.status).toBeGreaterThanOrEqual(400)
+    expect((await rest('merchants_public?select=id', null)).status).toBeGreaterThanOrEqual(400) // anon
+  })
+
+  test('fleet (token real) NÃO alcança total_brl por nenhum caminho, nem pela view fleet_orders', async () => {
+    const T = D.token!
+    // a view entrega o pedido servido, só com a taxa de entrega
+    const v = await rest('fleet_orders?select=*', T)
+    expect(v.status).toBe(200)
+    expect(v.json).toHaveLength(1)
+    expect(v.json[0].id).toBe(orderF)
+    expect(v.json[0].delivery_fee_brl).toBe(10)
+    const keys = Object.keys(v.json[0])
+    for (const k of ['total_brl', 'total_charged', 'pricing_breakdown', 'fx_rate_used', 'client_id', 'merchant_id']) expect(keys).not.toContain(k)
+    expect(JSON.stringify(v.json)).not.toMatch(/items_subtotal|commission|"total/)
+    // pedir a coluna explicitamente falha
+    for (const col of ['total_brl', 'pricing_breakdown', 'total_charged']) {
+      const r = await rest(`fleet_orders?select=${col}`, T)
+      expect(r.status, col).toBe(400)
+      expect(r.json.code).toBe('42703')
+    }
+    // a tabela base, itens, lojas e catálogo: vazios
+    for (const path of ['orders?select=*', `orders?select=total_brl&id=eq.${orderF}`, 'order_items?select=*', 'merchants?select=*', 'merchants_public?select=*',
+      'catalog_items?select=*', 'catalog_categories?select=*', 'audit_log?select=*', 'couriers?select=*&fleet_id=is.null']) {
+      const r = await rest(path, T)
+      expect(r.status, path).toBe(200)
+      expect(r.json, path).toEqual([])
+    }
+    // embutir orders a partir de outra tabela também não vaza (embed é filtrado pela mesma RLS)
+    const emb = await rest('fleets?select=id,orders(total_brl)', T)
+    expect(JSON.stringify(emb.json)).not.toMatch(/total_brl":\s*50/)
+    // escrever: nem pela view nem pela tabela
+    const w1 = await rest(`fleet_orders?id=eq.${orderF}`, T, { method: 'PATCH', body: { status: 'entregue' } })
+    expect(w1.status).toBeGreaterThanOrEqual(400)
+    const w2 = await rest(`orders?id=eq.${orderF}`, T, { method: 'PATCH', body: { total_brl: 0.01 }, prefer: 'return=representation' })
+    expect(w2.json).toEqual([])
+    const [dbRow] = (await committer.query('select total_brl, status from public.orders where id = $1', [orderF])).rows
+    expect(dbRow).toEqual({ total_brl: '50.00', status: 'coletado' })
   })
 })

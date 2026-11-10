@@ -164,7 +164,8 @@ describe('seeds', () => {
   test('toda coluna de cidade só aceita os slugs quarai/artigas', async () => {
     const cols = await db.query<{ table_name: string; column_name: string }>(
       `select table_name, column_name from information_schema.columns
-       where table_schema = 'public' and column_name in ('city', 'home_city', 'base_city')`,
+       where table_schema = 'public' and column_name in ('city', 'home_city', 'base_city')
+         and table_name in (select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE')`, // views (merchants_public) just project the CHECK-constrained column
     )
     expect(cols.rows.length).toBe(7)
     for (const c of cols.rows) {

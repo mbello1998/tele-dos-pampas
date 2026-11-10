@@ -104,7 +104,7 @@ insert into public.addresses (id, profile_id, label, city, country) values
   ('${ID.addrA}', '${ID.clientA}', 'casa', 'quarai', 'BR'), ('${ID.addrB}', '${ID.clientB}', 'casa', 'artigas', 'UY');
 
 insert into public.zones (city, name) values ('quarai', 'Centro (fixture)');
-insert into public.fx_rates (id, rate, source) values ('${ID.fx1}', 7.800000, 'manual');
+insert into public.fx_rates (id, rate, source, valid_for_date) values ('${ID.fx1}', 7.800000, 'manual', '2030-01-01');
 insert into public.settings (key, value, is_public) values ('rls_fixture_private', '"segredo"', false);
 
 insert into public.orders (id, kind, client_id, merchant_id, courier_id, fleet_id, pickup_address, dropoff_address,
