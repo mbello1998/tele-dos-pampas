@@ -1,5 +1,8 @@
 import { connect } from '../../../scripts/db/client'
 
+// Tabelas sem prefixo de schema de propósito: resolvem para public.* em produção, e os testes as
+// sombreiam com tabelas temporárias da transação (fx_rates é histórico protegido por trigger: nada
+// de delete nem de update, nem em teste).
 export interface Queryable {
   query(text: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>
 }
@@ -35,7 +38,7 @@ const ORDER_WITHIN_DATE = 'is_manual_override desc, fetched_at desc, id'
 const COLUMNS = 'rate::text as rate, spread_pct::text as spread_pct, valid_for_date::text as valid_for_date'
 
 async function readFallbackRate(db: Queryable): Promise<number> {
-  const { rows } = await db.query(`select value from public.settings where key = 'fx.fallback_rate'`)
+  const { rows } = await db.query(`select value from settings where key = 'fx.fallback_rate'`)
   const raw = rows[0]?.value
   const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_FALLBACK_RATE
@@ -45,7 +48,7 @@ async function lookup(db: Queryable, date: Date): Promise<EffectiveRate> {
   const day = toValidForDate(date)
 
   const exact = await db.query(
-    `select ${COLUMNS} from public.fx_rates
+    `select ${COLUMNS} from fx_rates
      where pair = 'BRL/UYU' and valid_for_date = $1 order by ${ORDER_WITHIN_DATE} limit 1`,
     [day],
   )
@@ -53,7 +56,7 @@ async function lookup(db: Queryable, date: Date): Promise<EffectiveRate> {
     ? undefined
     : (
         await db.query(
-          `select ${COLUMNS} from public.fx_rates
+          `select ${COLUMNS} from fx_rates
            where pair = 'BRL/UYU' order by valid_for_date desc, ${ORDER_WITHIN_DATE} limit 1`,
         )
       ).rows[0]

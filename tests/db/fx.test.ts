@@ -15,9 +15,12 @@ afterAll(async () => {
 // Isolation: every test runs inside a transaction that is always rolled back.
 beforeEach(async () => {
   await db.query('begin')
-  // Só dentro da transação (sempre revertida): ponto de partida determinístico.
-  await db.query('delete from public.fx_rates')
-  await db.query(`delete from public.settings where key = 'fx.fallback_rate'`)
+  // fx_rates é histórico protegido por trigger (nenhum update/delete, para ninguém), então não
+  // limpamos a tabela real: sombreamos fx_rates e settings com tabelas temporárias da transação
+  // (pg_temp vem primeiro no search_path). Começam vazias e somem no rollback; as linhas reais
+  // do banco compartilhado ficam invisíveis e intocadas, haja ou não alguma.
+  await db.query('create temp table fx_rates (like public.fx_rates including all)')
+  await db.query('create temp table settings (like public.settings including all)')
 })
 afterEach(async () => {
   await db.query('rollback')
@@ -25,18 +28,32 @@ afterEach(async () => {
 
 const insertRate = (rate: string, date: string, opts: { source?: string; manual?: boolean; spread?: string } = {}) =>
   db.query(
-    `insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date)
+    `insert into fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date)
      values ($1, $2, $3, $4, $5)`,
     [rate, opts.source ?? 'fxfeed', opts.spread ?? '5', opts.manual ?? false, date],
   )
 
 const D = new Date('2026-11-09T12:00:00Z')
+const ok = (uyu: number) =>
+  vi.fn().mockResolvedValue(new Response(JSON.stringify({ rates: { UYU: uyu } }), { status: 200 }))
+const log = vi.fn()
 
 describe('getEffectiveRate', () => {
   test('tabela fx_rates vazia usa a taxa padrão de settings e marca isStale', async () => {
-    await db.query(`insert into public.settings (key, value) values ('fx.fallback_rate', '8.25'::jsonb)`)
+    await db.query(`insert into settings (key, value) values ('fx.fallback_rate', '8.25'::jsonb)`)
     const r = await getEffectiveRate(D, db)
     expect(r).toMatchObject({ rate: 8.25, isStale: true, spreadPct: 0 })
+  })
+
+  test('linha real em public.fx_rates não vaza para o teste (independe do banco estar vazio)', async () => {
+    // Linha realista na tabela de verdade, dentro da transação revertida (insert é permitido).
+    await db.query(
+      `insert into public.fx_rates (rate, source, spread_pct, valid_for_date) values (9.99, 'fxfeed', 5, '2026-11-09')`,
+    )
+    expect(await getEffectiveRate(D, db)).toMatchObject({ rate: 7.8, isStale: true })
+    await updateFx({ db, fetchFn: ok(7.83), apiKey: 'k', today: D, log })
+    const real = await db.query(`select count(*)::int n from public.fx_rates where valid_for_date = '2026-11-09'`)
+    expect(real.rows[0].n).toBe(1) // o cron do teste escreveu só na sombra
   })
 
   test('tabela vazia e sem setting: usa 7.80 e marca isStale', async () => {
@@ -67,7 +84,7 @@ describe('getEffectiveRate', () => {
     // A linha da API é MAIS NOVA em fetched_at e tem id maior: sem a preferência por is_manual_override,
     // ela venceria por qualquer critério de desempate. Só a flag faz o manual ganhar.
     await db.query(
-      `insert into public.fx_rates (id, rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
+      `insert into fx_rates (id, rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
        values ('00000000-0000-0000-0000-000000000001', 8.1, 'manual', 3, true, '2026-11-09', '2026-11-09T08:00:00Z'),
               ('ffffffff-ffff-ffff-ffff-ffffffffffff', 7.9, 'fxfeed', 5, false, '2026-11-09', '2026-11-09T09:00:00Z')`,
     )
@@ -96,25 +113,22 @@ describe('getEffectiveRate', () => {
 })
 
 describe('updateFx', () => {
-  const ok = (uyu: number) =>
-    vi.fn().mockResolvedValue(new Response(JSON.stringify({ rates: { UYU: uyu } }), { status: 200 }))
-  const log = vi.fn()
 
   test('insere uma nova linha para hoje, fonte fxfeed', async () => {
     const res = await updateFx({ db, fetchFn: ok(7.83), apiKey: 'k', today: D, log })
     expect(res.status).toBe('inserted')
     const { rows } = await db.query(
-      `select rate::text, source, is_manual_override, valid_for_date::text d from public.fx_rates`,
+      `select rate::text, source, is_manual_override, valid_for_date::text d from fx_rates`,
     )
     expect(rows).toEqual([{ rate: '7.830000', source: 'fxfeed', is_manual_override: false, d: '2026-11-09' }])
   })
 
   test('não sobrescreve linha existente da mesma data', async () => {
     await insertRate('7.900000', '2026-11-09')
-    const before = await db.query('select * from public.fx_rates')
+    const before = await db.query('select * from fx_rates')
     const res = await updateFx({ db, fetchFn: ok(9.99), apiKey: 'k', today: D, log })
     expect(res.status).toBe('skipped-existing')
-    const after = await db.query('select * from public.fx_rates')
+    const after = await db.query('select * from fx_rates')
     expect(after.rows).toEqual(before.rows)
   })
 
@@ -122,20 +136,20 @@ describe('updateFx', () => {
     await insertRate('7.900000', '2026-11-09')
     await expect(
       db.query('savepoint s').then(() => insertRate('8.000000', '2026-11-09')),
-    ).rejects.toThrow(/fx_rates_pair_date_kind_key/)
+    ).rejects.toThrow(/duplicate key|unique/i)
     await db.query('rollback to savepoint s')
     const res = await updateFx({ db, fetchFn: ok(9.99), apiKey: 'k', today: D, log })
     expect(res.status).toBe('skipped-existing')
-    const { rows } = await db.query('select count(*)::int n from public.fx_rates')
+    const { rows } = await db.query('select count(*)::int n from fx_rates')
     expect(rows[0].n).toBe(1)
   })
 
   test('execução duplicada do cron é no-op: segunda chamada não cria nem altera linha', async () => {
     await updateFx({ db, fetchFn: ok(7.83), apiKey: 'k', today: D, log })
-    const first = await db.query('select * from public.fx_rates')
+    const first = await db.query('select * from fx_rates')
     const again = await updateFx({ db, fetchFn: ok(8.5), apiKey: 'k', today: D, log })
     expect(again.status).toBe('skipped-existing')
-    expect((await db.query('select * from public.fx_rates')).rows).toEqual(first.rows)
+    expect((await db.query('select * from fx_rates')).rows).toEqual(first.rows)
   })
 
   test('API fora do ar mantém a última taxa gravada e marca isStale', async () => {
@@ -143,14 +157,14 @@ describe('updateFx', () => {
     const dead = vi.fn().mockRejectedValue(new Error('ETIMEDOUT'))
     const res = await updateFx({ db, fetchFn: dead, apiKey: 'k', today: D, log })
     expect(res.status).toBe('api-failed')
-    const { rows } = await db.query('select count(*)::int n from public.fx_rates')
+    const { rows } = await db.query('select count(*)::int n from fx_rates')
     expect(rows[0].n).toBe(1)
     expect(await getEffectiveRate(D, db)).toMatchObject({ rate: 7.7, validForDate: '2026-11-07', isStale: true })
   })
 
   test('dia com linha manual e da API: o spread herdado é o do manual, como na leitura', async () => {
     await db.query(
-      `insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
+      `insert into fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
        values (8.1, 'manual', 3, true, '2026-11-08', '2026-11-08T08:00:00Z'),
               (7.9, 'fxfeed', 5, false, '2026-11-08', '2026-11-08T09:00:00Z')`,
     )
