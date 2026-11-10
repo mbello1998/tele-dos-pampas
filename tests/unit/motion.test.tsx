@@ -8,6 +8,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { StreetDataset } from '@/lib/geo/types'
 
 const root = resolve(__dirname, '../..')
+
+// A camada de movimento e a landing: o que esta Tarefa possui. Outras tarefas (busca de endereço,
+// painel...) têm regras próprias e podem, por desenho, buscar os datasets sob demanda.
+const MOTION_DIRS = ['src/components/motion', 'src/components/landing']
+const MOTION_FILES = ['src/app/page.tsx', 'src/app/es/page.tsx']
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8')
 
 function listFiles(dir: string, exts: string[]): string[] {
@@ -312,8 +317,11 @@ test('StreetGridDraw busca o dataset sob demanda e o componente não traz caminh
   expect(src).not.toMatch(/\/data\/\$\{|quarai\.json|artigas\.json/)
   expect(src).not.toMatch(/\sd=["']M/) // nenhum <path d="M…"> literal
 
-  // Nenhum import estático do JSON no código-fonte da landing: ele não pode entrar no bundle.
-  for (const file of [...listFiles('src/components', ['.tsx']), ...listFiles('src/app', ['.tsx']), ...listFiles('src/lib/motion', ['.ts'])]) {
+  // Nenhum import do JSON no código da landing e da camada de movimento: ele não pode entrar no bundle.
+  // (Escopo restrito: o seletor de rua, de outra tarefa, busca o dataset sob demanda por desenho.)
+  const arquivosDaLanding = [...MOTION_DIRS.flatMap((d) => listFiles(d, ['.tsx'])), ...MOTION_FILES, ...listFiles('src/lib/motion', ['.ts'])]
+  expect(arquivosDaLanding.length).toBeGreaterThan(8) // o escopo não pode esvaziar sem ninguém notar
+  for (const file of arquivosDaLanding) {
     expect(read(file), file).not.toMatch(/from\s+['"][^'"]*public\/data[^'"]*['"]|import\([^)]*public\/data/)
   }
 
@@ -400,7 +408,7 @@ test('as animações alteram apenas transform e opacity', async () => {
   expect(comDash).toEqual(['gridStroke'])
 
   // 2) Nenhuma chamada gsap.to/from/fromTo/set do código traz propriedade de layout.
-  const arquivos = [...listFiles('src/components', ['.tsx']), ...listFiles('src/lib/motion', ['.ts'])]
+  const arquivos = [...MOTION_DIRS.flatMap((d) => listFiles(d, ['.tsx'])), ...listFiles('src/lib/motion', ['.ts'])]
   for (const file of arquivos) {
     for (const call of chamadasGsap(read(file))) {
       expect(call, `${file}: propriedade de layout em tween`).not.toMatch(LAYOUT)
