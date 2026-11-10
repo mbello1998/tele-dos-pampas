@@ -22,8 +22,70 @@ vi.setConfig({ testTimeout: 120_000, hookTimeout: 180_000 })
  *   TRANSITION_MUTANT=no-lock npx vitest run tests/db/transition.test.ts
  */
 type Edit = { fn: 'transition_order' | 'assign_courier'; from: string; to: string }
+const T = 'transition_order' as const
+const A = 'assign_courier' as const
+const e = (fn: Edit['fn'], from: string, to: string): Edit => ({ fn, from, to })
 const MUTANTS: Record<string, Edit[]> = {
   baseline: [],
+
+  // --- o aceite atômico
+  'no-lock': [e(T, 'where o.id = p_order for update;', 'where o.id = p_order;')],
+  'taken-not-checked': [e(T, "if v_role = 'courier' and v_o.courier_id is not null and v_o.courier_id <> v_uid then", 'if false then')],
+  'claim-does-not-set-courier': [e(T, 'courier_id = case when v_claim then v_uid else o.courier_id end', 'courier_id = o.courier_id')],
+
+  // --- a tabela manda
+  'no-table-check': [e(T, 'where t.kind = v_o.kind and t.from_status = v_o.status and t.to_status = p_to and t.allowed_role = v_role', 'where true')],
+  'role-ignored': [e(T, 'and t.to_status = p_to and t.allowed_role = v_role', 'and t.to_status = p_to')],
+  'kind-ignored': [e(T, 'where t.kind = v_o.kind and t.from_status = v_o.status', 'where t.from_status = v_o.status')],
+  'from-ignored': [e(T, 'and t.from_status = v_o.status and t.to_status = p_to and t.allowed_role = v_role', 'and t.to_status = p_to and t.allowed_role = v_role')],
+
+  // --- quem pode mexer em qual pedido
+  'client-any-order': [e(T, 'if v_o.client_id is distinct from v_uid then', 'if false then')],
+  'merchant-any-shop': [e(T, 'if not private.owns_merchant(v_o.merchant_id) then', 'if false then')],
+  'city-not-checked': [e(T, 'if v_city is null or private.courier_base_city() is distinct from v_city then', 'if false then')],
+  'queue-not-checked': [
+    e(T, `if not ((v_o.kind = 'courier' and v_o.status = 'aguardando_motoboy')
+                or (v_o.kind = 'ride' and v_o.status = 'criado')
+                or (v_o.kind = 'food' and v_o.status = 'pronto')) then`, 'if false then'),
+  ],
+
+  // --- cancelamento e motivo
+  'cancel-no-reason': [e(T, "if p_to = 'cancelado' and v_note is null then", 'if false then')],
+  'cancel-reason-not-stored': [e(T, "cancel_reason = case when p_to = 'cancelado' then v_note", "cancel_reason = case when p_to = 'cancelado' then null")],
+  'cancel-actor-not-stored': [e(T, "cancelled_by = case when p_to = 'cancelado' then v_uid", "cancelled_by = case when p_to = 'cancelado' then null")],
+  'cancel-fields-linger': [e(T, "then v_note when o.status = 'cancelado' then null else", 'then v_note else')],
+
+  // --- o rastro
+  'no-event': [e(T, `insert into public.order_events (order_id, from_status, to_status, actor_id, actor_role, note)
+  values (v_o.id, v_o.status, p_to, v_uid, v_role, v_note);`, 'perform 1;')],
+  'event-without-actor': [e(T, 'values (v_o.id, v_o.status, p_to, v_uid, v_role, v_note);', 'values (v_o.id, v_o.status, p_to, null, null, v_note);')],
+  'event-without-role': [e(T, 'values (v_o.id, v_o.status, p_to, v_uid, v_role, v_note);', 'values (v_o.id, v_o.status, p_to, v_uid, null, v_note);')],
+  'event-without-note': [e(T, 'values (v_o.id, v_o.status, p_to, v_uid, v_role, v_note);', 'values (v_o.id, v_o.status, p_to, v_uid, v_role, null);')],
+
+  // --- o atalho do admin
+  'admin-through-the-table': [e(T, "if v_role = 'admin' then", 'if false then')],
+  'admin-no-reason': [e(T, "if v_note is null then\n      raise exception 'an administrator", "if false then\n      raise exception 'an administrator")],
+  'admin-any-flow': [
+    e(T, `if not exists (
+      select 1 from public.status_transitions t
+      where t.kind = v_o.kind and (t.from_status = p_to or t.to_status = p_to)
+    ) then`, 'if false then'),
+  ],
+  'admin-no-courier-needed': [e(T, 'and v_o.courier_id is null then', 'and false then')],
+  'admin-same-status': [e(T, 'if p_to = v_o.status then', 'if false then')],
+
+  // --- fleet_id
+  'fleet-not-copied': [e(T, 'fleet_id = case when v_claim then v_fleet else o.fleet_id end', 'fleet_id = o.fleet_id')],
+  'assign-fleet-not-copied': [e(A, 'fleet_id = v_fleet,', 'fleet_id = o.fleet_id,')],
+  'assign-stale-fleet-kept': [e(A, 'fleet_id = v_fleet,', 'fleet_id = coalesce(v_fleet, o.fleet_id),')],
+
+  // --- assign_courier
+  'assign-not-admin-only': [e(A, 'if not (select public.is_admin()) then', 'if false then')],
+  'assign-no-reason': [e(A, "if v_note is null then\n    raise exception 'assigning", "if false then\n    raise exception 'assigning")],
+  'assign-any-profile': [e(A, "where c.profile_id = p_courier and c.status = 'approved' and p.status = 'active' and p.role = 'courier'", 'where c.profile_id = p_courier')],
+  'assign-forgets-who': [e(A, "'courier ' || p_courier::text || ' assigned: ' || v_note", 'v_note')],
+  'assign-closed-order': [e(A, "if v_o.status in ('entregue', 'finalizado', 'cancelado') then", 'if false then')],
+  'assign-does-not-accept': [e(A, "then 'aceito'::public.order_status", 'then v_o.status')],
 }
 
 const MUTANT = process.env.TRANSITION_MUTANT
@@ -389,6 +451,12 @@ describe('transition_order: quem move, e o rastro', () => {
     expect((await row(queue)).courier_id).toBe(ID.courierQ2)
   })
 
+  test('pedido sem motoboy fora da fila não é "aceito" por courier nenhum (linha inconsistente herdada)', async () => {
+    const odd = await mkOrder({ kind: 'courier', status: 'aceito', courier: null })
+    refused(await move(ID.courierQ1, odd, 'coletado'), '42501', /not allowed to move/)
+    expect((await row(odd)).courier_id).toBeNull()
+  })
+
   test('aceite copia o fleet_id do motoboy; motoboy autônomo deixa fleet_id nulo', async () => {
     const a = await mkOrder({ kind: 'courier', status: 'aguardando_motoboy' })
     accepted(await move(ID.courierQ1, a, 'aceito'))
@@ -396,6 +464,33 @@ describe('transition_order: quem move, e o rastro', () => {
     const b = await mkOrder({ kind: 'courier', status: 'aguardando_motoboy' })
     accepted(await move(ID.courierQ2, b, 'aceito'))
     expect(await row(b)).toMatchObject({ courier_id: ID.courierQ2, fleet_id: null })
+  })
+
+  test('o gatilho de movimento existe e está ligado; e o teste de UPDATE direto discrimina (controle sem o gatilho)', async () => {
+    await as('postgres')
+    const t = await db.query(`select tgenabled from pg_trigger where tgrelid = 'public.orders'::regclass and tgname = 'orders_move_guard' and not tgisinternal`)
+    expect(t.rows).toEqual([{ tgenabled: 'O' }])
+    // Mesma função do gatilho, numa tabela TEMP com a forma de orders: com o gatilho o UPDATE do admin é recusado,
+    // sem ele o MESMO comando passa. Prova que a recusa vem do gatilho e não de outra coisa (RLS/guarda de colunas
+    // não existem nessa tabela), sem tocar em objeto compartilhado.
+    await db.query(`create temp table o_guard (like public.orders including defaults)`)
+    await db.query(`grant all on o_guard to authenticated`)
+    await db.query(`insert into o_guard (id, kind, client_id, pickup_address, dropoff_address, status, total_brl, total_charged, payment_method)
+                    values ('${orderId(900)}', 'courier', '${ID.clientA}', '{}', '{}', 'criado', 1, 1, 'pix')`)
+    await as(ID.admin)
+    const free = await attempt(`update o_guard set status = 'entregue' where id = '${orderId(900)}'`)
+    expect(free.ok, 'sem o gatilho o UPDATE direto passa (controle)').toBe(true)
+    await as('postgres')
+    await db.query(`create trigger orders_move_guard before update on o_guard for each row execute function private.orders_move_guard()`)
+    await as(ID.admin)
+    const guarded = await attempt(`update o_guard set status = 'em_rota' where id = '${orderId(900)}'`)
+    expect(guarded.ok).toBe(false)
+    if (!guarded.ok) {
+      expect(guarded.code).toBe('42501')
+      expect(guarded.message).toMatch(/transition_order/)
+    }
+    // o gatilho deixa passar o que não é movimento
+    expect((await attempt(`update o_guard set client_notes = 'x' where id = '${orderId(900)}'`)).ok).toBe(true)
   })
 
   test('direto no PostgREST ninguém move pedido: nem o admin faz UPDATE de status, courier_id ou fleet_id', async () => {
