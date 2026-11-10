@@ -2,9 +2,11 @@
 -- from auth.uid(). It is NEVER read from a JWT claim: user_metadata is editable by the user, and a
 -- claim-based check would let any client promote itself.
 --
--- WARNING for everyone who writes SQL after this file: `current_role` is a reserved SQL keyword.
--- Unqualified, it returns the *database* role name as text ('authenticated'), not our user_role.
--- Always write public.current_role().
+-- The role function is called app_role(), NOT current_role(): `current_role` is a reserved SQL keyword,
+-- so an unqualified `current_role() <> 'admin'` silently evaluates the DATABASE role ('authenticated')
+-- and is always true: a security check that passes with no error anywhere. (The first version of this
+-- file used that name; it was renamed, see 0014. This file defines app_role() from the start so that a
+-- fresh replay of the ordered migrations never needs the old name.)
 
 create schema if not exists private;
 revoke all on schema private from public;
@@ -12,7 +14,7 @@ grant usage on schema private to authenticated, service_role;
 
 -- The caller's application role, or null when there is no active profile (anonymous, no profile
 -- row yet, or status <> 'active'). A blocked or pending account therefore holds no privileges at all.
-create function public.current_role() returns public.user_role
+create function public.app_role() returns public.user_role
 language sql stable security definer set search_path = ''
 as $$
   select p.role from public.profiles p
@@ -22,11 +24,11 @@ $$;
 create function public.is_admin() returns boolean
 language sql stable security definer set search_path = ''
 as $$
-  select coalesce((select public.current_role()) = 'admin', false)
+  select coalesce((select public.app_role()) = 'admin', false)
 $$;
 
-revoke all on function public.current_role(), public.is_admin() from public, anon;
-grant execute on function public.current_role(), public.is_admin() to authenticated, service_role;
+revoke all on function public.app_role(), public.is_admin() from public, anon;
+grant execute on function public.app_role(), public.is_admin() to authenticated, service_role;
 
 -- Ownership lookups used by policies. They are SECURITY DEFINER so a policy on table A can consult
 -- table B without B's own RLS recursing back into A. They live in the `private` schema, which
@@ -38,7 +40,7 @@ create function private.owned_merchant_ids() returns setof uuid
 language sql stable security definer set search_path = ''
 as $$
   select m.id from public.merchants m
-  where m.owner_id = (select auth.uid()) and (select public.current_role()) = 'merchant'
+  where m.owner_id = (select auth.uid()) and (select public.app_role()) = 'merchant'
 $$;
 
 create function private.owns_merchant(p_merchant uuid) returns boolean
@@ -46,7 +48,7 @@ language sql stable security definer set search_path = ''
 as $$
   select exists (
     select 1 from public.merchants m
-    where m.id = p_merchant and m.owner_id = (select auth.uid()) and (select public.current_role()) = 'merchant'
+    where m.id = p_merchant and m.owner_id = (select auth.uid()) and (select public.app_role()) = 'merchant'
   )
 $$;
 
@@ -61,7 +63,7 @@ create function private.owned_fleet_ids() returns setof uuid
 language sql stable security definer set search_path = ''
 as $$
   select f.id from public.fleets f
-  where f.owner_id = (select auth.uid()) and f.status = 'approved' and (select public.current_role()) = 'fleet'
+  where f.owner_id = (select auth.uid()) and f.status = 'approved' and (select public.app_role()) = 'fleet'
 $$;
 
 create function private.fleet_courier_ids() returns setof uuid
@@ -75,7 +77,7 @@ create function private.courier_base_city() returns text
 language sql stable security definer set search_path = ''
 as $$
   select c.base_city from public.couriers c
-  where c.profile_id = (select auth.uid()) and c.status = 'approved' and (select public.current_role()) = 'courier'
+  where c.profile_id = (select auth.uid()) and c.status = 'approved' and (select public.app_role()) = 'courier'
 $$;
 
 -- City of an order for queue visibility. Contract with the order-creation task: pickup_address carries
@@ -159,7 +161,7 @@ begin
   insert into public.audit_log (actor_id, actor_role, table_name, record_id, action, before, after)
   values (
     (select auth.uid()),
-    (select public.current_role()),
+    (select public.app_role()),
     tg_table_name,
     coalesce(v_new ->> 'id', v_new ->> 'profile_id', v_new ->> 'key', v_old ->> 'id', v_old ->> 'profile_id', v_old ->> 'key'),
     tg_op,

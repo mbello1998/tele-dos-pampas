@@ -2,7 +2,7 @@
 -- Postgres even when the caller holds a valid token.
 --
 -- Model
---   * Role = profiles.role via public.current_role() (security definer), never a JWT claim.
+--   * Role = profiles.role via public.app_role() (security definer), never a JWT claim.
 --   * Default deny: RLS is enabled on every table (0001..0006); a table with no policy for a role is
 --     invisible to it. anon holds no table privilege except SELECT on settings (see "Privileges").
 --   * Policies are PERMISSIVE and OR together; each is scoped `to authenticated` (or anon) and names
@@ -15,7 +15,7 @@
 --   * orders / order_items / order_events are INSERTed only by SECURITY DEFINER functions
 --     (create_order, transition_order) or by admin. No API role inserts a priced order directly.
 --
--- Shorthand used in every policy:  (select auth.uid())  and  (select public.current_role())
+-- Shorthand used in every policy:  (select auth.uid())  and  (select public.app_role())
 -- are wrapped in a sub-select so Postgres evaluates them once per statement, not once per row.
 
 -- =============================================================================================
@@ -50,17 +50,17 @@ create policy audit_log_select_admin on public.audit_log for select to authentic
 -- =============================================================================================
 -- Transition table: every active role reads it (the dispatch console draws only the buttons the role may press).
 create policy status_transitions_select_active on public.status_transitions for select to authenticated
-  using ((select public.current_role()) is not null);
+  using ((select public.app_role()) is not null);
 
 create policy zones_select_active on public.zones for select to authenticated
-  using ((select public.current_role()) is not null);
+  using ((select public.app_role()) is not null);
 
 create policy fx_rates_select_active on public.fx_rates for select to authenticated
-  using ((select public.current_role()) is not null);
+  using ((select public.app_role()) is not null);
 
 -- Delivery tariff: those who pay or earn it. merchant is NOT in the list (not their money, not their table).
 create policy pricing_rules_select_client_courier_fleet on public.pricing_rules for select to authenticated
-  using ((select public.current_role()) in ('client', 'courier', 'fleet'));
+  using ((select public.app_role()) in ('client', 'courier', 'fleet'));
 
 -- =============================================================================================
 -- profiles
@@ -70,7 +70,7 @@ create policy profiles_select_own on public.profiles for select to authenticated
 
 -- A fleet owner reads the profiles (name, phone) of the couriers in their approved fleet, nobody else's.
 create policy profiles_select_fleet_couriers on public.profiles for select to authenticated
-  using ((select public.current_role()) = 'fleet' and id in (select private.fleet_courier_ids()));
+  using ((select public.app_role()) = 'fleet' and id in (select private.fleet_courier_ids()));
 
 -- Self-registration as a plain client only; role/status can never be chosen by the caller.
 create policy profiles_insert_own_client on public.profiles for insert to authenticated
@@ -78,32 +78,32 @@ create policy profiles_insert_own_client on public.profiles for insert to authen
 
 -- Own row, active accounts only. Which COLUMNS may change is the trigger's job (role/status are not allowed).
 create policy profiles_update_own on public.profiles for update to authenticated
-  using (id = (select auth.uid()) and (select public.current_role()) is not null)
+  using (id = (select auth.uid()) and (select public.app_role()) is not null)
   with check (id = (select auth.uid()));
 
 -- =============================================================================================
 -- fleets
 -- =============================================================================================
 create policy fleets_select_owner on public.fleets for select to authenticated
-  using ((select public.current_role()) = 'fleet' and owner_id = (select auth.uid()));
+  using ((select public.app_role()) = 'fleet' and owner_id = (select auth.uid()));
 
 create policy fleets_update_owner on public.fleets for update to authenticated
-  using ((select public.current_role()) = 'fleet' and owner_id = (select auth.uid()))
-  with check ((select public.current_role()) = 'fleet' and owner_id = (select auth.uid()));
+  using ((select public.app_role()) = 'fleet' and owner_id = (select auth.uid()))
+  with check ((select public.app_role()) = 'fleet' and owner_id = (select auth.uid()));
 -- insert/delete: admin only (fleets are created and approved by the platform)
 
 -- =============================================================================================
 -- couriers
 -- =============================================================================================
 create policy couriers_select_own on public.couriers for select to authenticated
-  using ((select public.current_role()) = 'courier' and profile_id = (select auth.uid()));
+  using ((select public.app_role()) = 'courier' and profile_id = (select auth.uid()));
 
 create policy couriers_select_fleet on public.couriers for select to authenticated
   using (fleet_id in (select private.owned_fleet_ids()));
 
 create policy couriers_update_own on public.couriers for update to authenticated
-  using ((select public.current_role()) = 'courier' and profile_id = (select auth.uid()))
-  with check ((select public.current_role()) = 'courier' and profile_id = (select auth.uid()));
+  using ((select public.app_role()) = 'courier' and profile_id = (select auth.uid()))
+  with check ((select public.app_role()) = 'courier' and profile_id = (select auth.uid()));
 
 create policy couriers_update_fleet on public.couriers for update to authenticated
   using (fleet_id in (select private.owned_fleet_ids()))
@@ -117,18 +117,18 @@ create policy couriers_update_fleet on public.couriers for update to authenticat
 -- Not readers: courier, fleet, other merchants, and EVERYONE when owner_id is null (only admin).
 -- =============================================================================================
 create policy merchants_select_client on public.merchants for select to authenticated
-  using ((select public.current_role()) = 'client' and status = 'approved');
+  using ((select public.app_role()) = 'client' and status = 'approved');
 
 create policy merchants_select_owner on public.merchants for select to authenticated
-  using ((select public.current_role()) = 'merchant' and owner_id = (select auth.uid()));
+  using ((select public.app_role()) = 'merchant' and owner_id = (select auth.uid()));
 
 create policy merchants_update_owner on public.merchants for update to authenticated
-  using ((select public.current_role()) = 'merchant' and owner_id = (select auth.uid()))
-  with check ((select public.current_role()) = 'merchant' and owner_id = (select auth.uid()));
+  using ((select public.app_role()) = 'merchant' and owner_id = (select auth.uid()))
+  with check ((select public.app_role()) = 'merchant' and owner_id = (select auth.uid()));
 -- insert/delete: admin only. status, owner_id, commission_pct, city, country, kind are admin-only columns (trigger).
 
 create policy merchant_hours_select_client on public.merchant_hours for select to authenticated
-  using ((select public.current_role()) = 'client' and private.merchant_is_public(merchant_id));
+  using ((select public.app_role()) = 'client' and private.merchant_is_public(merchant_id));
 create policy merchant_hours_select_owner on public.merchant_hours for select to authenticated
   using (private.owns_merchant(merchant_id));
 create policy merchant_hours_insert_owner on public.merchant_hours for insert to authenticated
@@ -139,7 +139,7 @@ create policy merchant_hours_delete_owner on public.merchant_hours for delete to
   using (private.owns_merchant(merchant_id));
 
 create policy catalog_categories_select_client on public.catalog_categories for select to authenticated
-  using ((select public.current_role()) = 'client' and private.merchant_is_public(merchant_id));
+  using ((select public.app_role()) = 'client' and private.merchant_is_public(merchant_id));
 create policy catalog_categories_select_owner on public.catalog_categories for select to authenticated
   using (private.owns_merchant(merchant_id));
 create policy catalog_categories_insert_owner on public.catalog_categories for insert to authenticated
@@ -151,7 +151,7 @@ create policy catalog_categories_delete_owner on public.catalog_categories for d
 
 -- An item may only point at a category of the SAME shop.
 create policy catalog_items_select_client on public.catalog_items for select to authenticated
-  using ((select public.current_role()) = 'client' and private.merchant_is_public(merchant_id));
+  using ((select public.app_role()) = 'client' and private.merchant_is_public(merchant_id));
 create policy catalog_items_select_owner on public.catalog_items for select to authenticated
   using (private.owns_merchant(merchant_id));
 create policy catalog_items_insert_owner on public.catalog_items for insert to authenticated
@@ -169,7 +169,7 @@ create policy catalog_items_delete_owner on public.catalog_items for delete to a
   using (private.owns_merchant(merchant_id));
 
 create policy item_option_groups_select_client on public.item_option_groups for select to authenticated
-  using ((select public.current_role()) = 'client' and private.merchant_is_public(private.item_merchant_id(item_id)));
+  using ((select public.app_role()) = 'client' and private.merchant_is_public(private.item_merchant_id(item_id)));
 create policy item_option_groups_select_owner on public.item_option_groups for select to authenticated
   using (private.owns_merchant(private.item_merchant_id(item_id)));
 create policy item_option_groups_insert_owner on public.item_option_groups for insert to authenticated
@@ -181,7 +181,7 @@ create policy item_option_groups_delete_owner on public.item_option_groups for d
   using (private.owns_merchant(private.item_merchant_id(item_id)));
 
 create policy item_options_select_client on public.item_options for select to authenticated
-  using ((select public.current_role()) = 'client' and private.merchant_is_public(private.group_merchant_id(group_id)));
+  using ((select public.app_role()) = 'client' and private.merchant_is_public(private.group_merchant_id(group_id)));
 create policy item_options_select_owner on public.item_options for select to authenticated
   using (private.owns_merchant(private.group_merchant_id(group_id)));
 create policy item_options_insert_owner on public.item_options for insert to authenticated
@@ -196,14 +196,14 @@ create policy item_options_delete_owner on public.item_options for delete to aut
 -- addresses: whoever owns the row, while the account is active
 -- =============================================================================================
 create policy addresses_select_own on public.addresses for select to authenticated
-  using (profile_id = (select auth.uid()) and (select public.current_role()) is not null);
+  using (profile_id = (select auth.uid()) and (select public.app_role()) is not null);
 create policy addresses_insert_own on public.addresses for insert to authenticated
-  with check (profile_id = (select auth.uid()) and (select public.current_role()) is not null);
+  with check (profile_id = (select auth.uid()) and (select public.app_role()) is not null);
 create policy addresses_update_own on public.addresses for update to authenticated
-  using (profile_id = (select auth.uid()) and (select public.current_role()) is not null)
+  using (profile_id = (select auth.uid()) and (select public.app_role()) is not null)
   with check (profile_id = (select auth.uid()));
 create policy addresses_delete_own on public.addresses for delete to authenticated
-  using (profile_id = (select auth.uid()) and (select public.current_role()) is not null);
+  using (profile_id = (select auth.uid()) and (select public.app_role()) is not null);
 
 -- =============================================================================================
 -- orders
@@ -218,7 +218,7 @@ create policy addresses_delete_own on public.addresses for delete to authenticat
 -- and never deleted. Direct UPDATE is limited to the client's free-text columns (trigger).
 -- =============================================================================================
 create policy orders_select_client on public.orders for select to authenticated
-  using (client_id = (select auth.uid()) and (select public.current_role()) is not null);
+  using (client_id = (select auth.uid()) and (select public.app_role()) is not null);
 
 create policy orders_select_courier on public.orders for select to authenticated
   using (
@@ -244,7 +244,7 @@ create policy orders_select_fleet on public.orders for select to authenticated
   using (fleet_id in (select private.owned_fleet_ids()));
 
 create policy orders_update_client on public.orders for update to authenticated
-  using (client_id = (select auth.uid()) and (select public.current_role()) is not null)
+  using (client_id = (select auth.uid()) and (select public.app_role()) is not null)
   with check (client_id = (select auth.uid()));
 
 -- order_items: the lines of a sale are the merchant's revenue. client (own order), merchant (own shop)

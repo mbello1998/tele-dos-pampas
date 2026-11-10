@@ -18,7 +18,22 @@
 -- ---------------------------------------------------------------------------------------------
 -- 1. app_role()
 -- ---------------------------------------------------------------------------------------------
-alter function public.current_role() rename to app_role;
+-- 0008 and 0009 now define app_role() from the start, so on a fresh replay there is nothing to rename.
+-- On a database that applied the ORIGINAL 0008 (the live project) the function is still current_role():
+-- rename it. Either way the end state is the same, and re-running this is a no-op.
+do $$
+begin
+  if exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'current_role' and p.pronargs = 0
+  ) and not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'app_role' and p.pronargs = 0
+  ) then
+    alter function public."current_role"() rename to app_role;
+  end if;
+end
+$$;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = ''
