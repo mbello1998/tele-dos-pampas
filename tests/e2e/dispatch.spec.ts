@@ -43,7 +43,7 @@ test.beforeAll(async () => {
   await withDb(async (q) => {
     await q(`insert into public.couriers (profile_id, vehicle, base_city, status) values ($1, 'moto', 'quarai', 'approved')`, [courier.id])
     shopId = String((await q(`select id from public.merchants where city = 'quarai' limit 1`))[0].id)
-    const addr = JSON.stringify({ city: 'quarai', street_name: 'Rua E2E', number: '10' })
+    const addr = JSON.stringify({ city: 'quarai', street_name: 'Rua E2E', number: '10', reference: 'portão azul, em frente à padaria' })
     const mk = async (code: string, kind: string, status: string, merchant: string | null) => {
       const r = await q(
         `insert into public.orders (code, kind, client_id, merchant_id, pickup_address, dropoff_address, status, total_brl, total_charged, payment_method)
@@ -79,6 +79,9 @@ test.describe('como admin', () => {
   test('lista só pedidos ativos e desenha só os botões legais de cada um', async ({ page }) => {
     await expect(row(page, CODES.fila)).toBeVisible()
     await expect(row(page, CODES.preparo)).toBeVisible()
+    // rua fora do OSM (street_id nulo): o endereço vem de street_name e a referência aparece em destaque
+    await expect(row(page, CODES.preparo).getByTestId('pickup-reference')).toHaveText('ref.: portão azul, em frente à padaria')
+    await expect(row(page, CODES.preparo)).toContainText('Rua E2E, 10')
     await expect(row(page, CODES.encerrado)).toHaveCount(0) // entregue sai da lista
 
     // Encomenda na fila, sem motoboy: o único passo adiante é cancelar. "Aceito" não aparece (exige motoboy:

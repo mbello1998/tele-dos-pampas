@@ -4,7 +4,10 @@ import {
 import { CourierSelect, type DispatchCourier } from './CourierSelect'
 import { TransitionButtons } from './TransitionButtons'
 
-type Place = { city?: string; street_name?: string; number?: string } | null
+// street_id may be null (a street missing from OpenStreetMap, typed by the customer): the street is always read
+// from street_name, never joined through street_id. For those addresses the free-text reference is the main
+// thing a courier has to go on, so it is shown prominently.
+type Place = { city?: string; street_name?: string; number?: string; complement?: string; reference?: string } | null
 type Shop = { name: string; city: string }
 
 export interface DispatchOrder {
@@ -27,6 +30,11 @@ const place = (a: Place) => (a ? [a.street_name, a.number].filter(Boolean).join(
 const when = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 
+function Reference({ at, testId }: { at: Place; testId: string }) {
+  const reference = at?.reference?.trim()
+  return reference ? <div className="font-semibold text-amber-200" data-testid={testId}>ref.: {reference}</div> : null
+}
+
 /** One active order: what it is, where it is, who has it, and only the buttons that are legal. */
 export function OrderRow({ order, rows, couriers }: { order: DispatchOrder; rows: TransitionRow[]; couriers: DispatchCourier[] }) {
   const merchant = Array.isArray(order.merchant) ? order.merchant[0] ?? null : order.merchant
@@ -48,7 +56,9 @@ export function OrderRow({ order, rows, couriers }: { order: DispatchOrder; rows
       </td>
       <td className="px-2 py-3 text-sm">
         <div>{city ?? '—'}: {place(order.pickup_address)}</div>
-        <div className="text-white/60">para {place(order.dropoff_address)}</div>
+        <Reference at={order.pickup_address} testId="pickup-reference" />
+        <div className="mt-1 text-white/60">para {place(order.dropoff_address)}</div>
+        <Reference at={order.dropoff_address} testId="dropoff-reference" />
       </td>
       <td className="px-2 py-3 text-sm" data-testid="courier">
         {order.courier_id ? (courier?.full_name ?? order.courier_id.slice(0, 8)) : '—'}
