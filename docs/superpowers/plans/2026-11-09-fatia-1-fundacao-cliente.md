@@ -23,7 +23,7 @@
 - A ponte é 24h: **travessia nunca bloqueia por horário**; o que bloqueia é `service_hours` (regra do município), por cidade e por `kind`, com fim às 00:00.
 - Raio em três camadas: teto global em `settings` > `fleets.max_radius_km` > `couriers.work_radius_km`; toda alteração gera `courier_events` legível pelo dono da frota.
 - Posição do motoboy transmitida a cada **10 s ou 30 m**, o que vier primeiro, e só durante pedido ativo.
-- Animação apenas em `transform` e `opacity`. **Sem WebGL, sem three.js.** `prefers-reduced-motion` desliga o decorativo.
+- Animação apenas em `transform` e `opacity`, com **uma exceção declarada**: `stroke-dashoffset` é permitido no desenho da malha de ruas (preset `gridStroke`), porque é o único jeito de uma linha se desenhar e não dispara layout. A exceção é escopada a esse preset e **um teste garante que nada mais usa `stroke-dashoffset`**. **Sem WebGL, sem three.js.** `prefers-reduced-motion` desliga o decorativo.
 - Todo preço renderizado usa **números tabulares** (`font-variant-numeric: tabular-nums`).
 - Idioma (`pt-BR` | `es-UY`) e moeda de exibição (`BRL` | `UYU`) são **independentes**.
 - Tokens de cor: fundo `#0B0F0D`, sol `#F2A516`, brasa `#D9452B`, rio `#2E7D8C`, campo `#1F4D3A`.
