@@ -14,6 +14,15 @@ describe('convertBrlToUyu', () => {
     expect(convertBrlToUyu(10, 7.8, 0)).toBe(78)
   })
 
+  test('ruído de ponto flutuante não empurra um valor exato para o peso seguinte', () => {
+    // 6.25 * (8.8 * 1) dá 55.00000000000001 em ponto flutuante; o valor exato é 55.
+    // Sem trimFloatNoise o ceil devolveria 56. Entrada achada por varredura, não 10 * 7.8 (que é exato).
+    expect(6.25 * (8.8 * (1 + 0 / 100))).toBeGreaterThan(55)
+    expect(convertBrlToUyu(6.25, 8.8, 0)).toBe(55)
+    expect(convertBrlToUyu(6.25, 8, 10)).toBe(55)
+    expect(convertBrlToUyu(6.25, 7, 12)).toBe(49)
+  })
+
   test('rejeita entradas não finitas ou taxa não positiva', () => {
     expect(() => convertBrlToUyu(Number.NaN, 7.8, 5)).toThrow(RangeError)
     expect(() => convertBrlToUyu(10, 0, 5)).toThrow(RangeError)
@@ -53,6 +62,12 @@ describe('formatMoney', () => {
 
   test('valor negativo põe o sinal antes do símbolo', () => {
     expect(formatMoney(-15, 'BRL', 'pt-BR')).toBe('-R$ 15,00')
+  })
+
+  test('valor negativo que arredonda para zero não mostra sinal (sem "-R$ 0,00")', () => {
+    expect(formatMoney(-0.001, 'BRL', 'pt-BR')).toBe('R$ 0,00')
+    expect(formatMoney(-0.4, 'UYU', 'es-UY')).toBe('$U 0')
+    expect(formatMoney(-0.01, 'BRL', 'pt-BR')).toBe('-R$ 0,01')
   })
 
   test('rejeita valor não finito', () => {

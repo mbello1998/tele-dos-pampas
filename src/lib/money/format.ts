@@ -7,7 +7,7 @@ const SYMBOL: Record<Currency, string> = { BRL: 'R$', UYU: '$U' }
 // BRL mostra centavos; UYU não é cotado em centésimos.
 const FRACTION_DIGITS: Record<Currency, number> = { BRL: 2, UYU: 0 }
 
-// Remove ruído de ponto flutuante (ex.: 81.89999999999999 -> 81.9) antes de arredondar.
+// Remove ruído de ponto flutuante (ex.: 6.25 * 8.8 = 55.00000000000001 -> 55, que sem isto virava 56) antes de arredondar.
 const trimFloatNoise = (x: number): number => Math.round(x * 1e6) / 1e6
 
 const assertFinite = (name: string, value: number): void => {

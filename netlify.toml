@@ -3,3 +3,8 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Câmbio BRL/UYU: busca a taxa uma vez por dia (06:00 UTC). Só insere linha nova, nunca altera.
+[functions."update-fx"]
+  schedule = "0 6 * * *"
+  included_files = ["supabase/prod-ca-2021.crt"]
