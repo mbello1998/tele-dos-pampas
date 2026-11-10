@@ -102,7 +102,14 @@ describe('seeds', () => {
   })
 
   test('pricing_rules padrão tem base 10.00, included_km 2.0, per_km 2.50, min 10.00', async () => {
-    const { rows } = await db.query(`select * from pricing_rules where valid_to is null`)
+    // As regras são versionadas por data: contar linhas quebraria no dia em que existir uma segunda versão.
+    // O que vale é a versão EM VIGOR hoje (data civil das cidades): exatamente uma por (cidade, kind), seis no total.
+    const { rows } = await db.query(
+      `select * from pricing_rules
+       where valid_from <= (now() at time zone 'America/Montevideo')::date
+         and (valid_to is null or valid_to > (now() at time zone 'America/Montevideo')::date)`,
+    )
+    expect(new Set(rows.map((r) => `${r.city}/${r.kind}`)).size).toBe(6)
     expect(rows.length).toBe(6)
     for (const r of rows) {
       expect(r.base_fare_brl).toBe('10.00')

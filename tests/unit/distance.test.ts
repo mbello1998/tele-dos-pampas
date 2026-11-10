@@ -13,6 +13,9 @@ const ARTIGAS: LatLng = { lat: -30.41186, lng: -56.46895 }
 // Geodesic distance between those two points on the WGS-84 ellipsoid, computed
 // independently with Vincenty's inverse formula (not with haversine).
 const EXPECTED_GEODESIC_M = 4004.9
+// The same two points on the sphere the code models (R = 6371008.8 m): 4013.45 m, which is 0.22% above
+// the ellipsoidal geodesic. That gap is the spherical-Earth approximation, not an error in the code.
+const EXPECTED_HAVERSINE_M = 4013.5
 
 const HAVERSINE_FACTOR = 1.35
 
@@ -41,9 +44,35 @@ afterEach(() => {
 })
 
 describe('haversineMeters', () => {
-  it('Quarai centre to Artigas centre matches the geodesic value within 2%', () => {
+  it('Quarai centre to Artigas centre matches the haversine reference within 0.1%', () => {
+    // 2% (the old tolerance) hid a wrong Earth radius: the equatorial radius is +0.11% against the mean
+    // radius and passed. 0.1% of 4013.5 m is +-4.0 m, which rejects equatorial (4017.9) and polar (4004.5).
     const d = haversineMeters(QUARAI, ARTIGAS)
-    expect(Math.abs(d - EXPECTED_GEODESIC_M) / EXPECTED_GEODESIC_M).toBeLessThan(0.02)
+    expect(Math.abs(d - EXPECTED_HAVERSINE_M) / EXPECTED_HAVERSINE_M).toBeLessThan(0.001)
+  })
+
+  it('the spherical value stays within 0.3% of the ellipsoidal geodesic (the model error, not a bug)', () => {
+    const d = haversineMeters(QUARAI, ARTIGAS)
+    expect(Math.abs(d - EXPECTED_GEODESIC_M) / EXPECTED_GEODESIC_M).toBeLessThan(0.003)
+  })
+
+  // What the product actually charges for is a few hundred metres inside a small town. The references below
+  // are not produced by the haversine formula: on a meridian the arc is R * dLat exactly, and for a tiny
+  // east-west step it is R * cos(lat) * dLng (error ~1e-9), with R = 6371008.8 m (IUGG mean radius).
+  it('about 50 m due north: R * dLat (0.00045 deg = 50.0378 m)', () => {
+    const d = haversineMeters(QUARAI, { lat: QUARAI.lat + 0.00045, lng: QUARAI.lng })
+    expect(d).toBeCloseTo(50.0378, 3)
+  })
+
+  it('about 48 m due east: R * cos(lat) * dLng (0.0005 deg at -30.379 = 47.9639 m)', () => {
+    const d = haversineMeters(QUARAI, { lat: QUARAI.lat, lng: QUARAI.lng + 0.0005 })
+    expect(d).toBeCloseTo(47.9639, 3)
+  })
+
+  it('a 50 m step is not rounded away or lost to precision: it is neither 0 nor a whole kilometre', () => {
+    const d = haversineMeters(ARTIGAS, { lat: ARTIGAS.lat - 0.00045, lng: ARTIGAS.lng })
+    expect(d).toBeGreaterThan(49.9)
+    expect(d).toBeLessThan(50.2)
   })
 
   it('is symmetric', () => {
