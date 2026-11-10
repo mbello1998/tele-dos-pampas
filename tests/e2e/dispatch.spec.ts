@@ -30,6 +30,7 @@ async function cleanup() {
 }
 
 test.beforeAll(async () => {
+  test.setTimeout(150_000) // dezenas de idas ao banco compartilhado (sa-east-1)
   await cleanup() // sobras de uma execução que morreu no meio
   admin = await createUser('dispatch-admin')
   client = await createUser('dispatch-client')

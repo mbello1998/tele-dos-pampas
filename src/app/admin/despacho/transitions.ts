@@ -72,7 +72,10 @@ export function legalTargets(rows: TransitionRow[], order: OrderLike, role: User
   const reachable = (s: OrderStatus) =>
     s !== order.status && (order.courier_id !== null || !COURIER_STATUSES.includes(s))
   const all = sortStatuses([...vocabulary].filter(reachable))
-  const natural = new Set(ofKind.filter((r) => r.from_status === order.status).map((r) => r.to_status))
+  // Cancelling is always one click away for the admin (a courier who falls through after the accept is the
+  // everyday case), even where no role in the table can cancel from here.
+  const natural = new Set<OrderStatus>(ofKind.filter((r) => r.from_status === order.status).map((r) => r.to_status))
+  natural.add('cancelado')
   const next = all.filter((s) => natural.has(s))
   return { next, other: all.filter((s) => !natural.has(s)), all }
 }

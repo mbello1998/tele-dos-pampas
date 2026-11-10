@@ -772,6 +772,9 @@ describe('o console só mostra botão que o banco aceita (legalTargets == o que 
     expect(a.other).toEqual(expect.arrayContaining(['criado']))
     const b = t('courier', 'aguardando_motoboy', 'admin', ID.courierQ1)
     expect(b.next.sort()).toEqual(['aceito', 'cancelado'])
+    // depois do aceite nenhum papel da tabela cancela, mas o admin cancela com um clique (é o caso do motoboy que furou)
+    expect(t('courier', 'aceito', 'admin', ID.courierQ1).next).toEqual(['coletado', 'cancelado'])
+    expect(t('courier', 'aceito', 'client', ID.courierQ1).all).toEqual([])
   })
 })
 
