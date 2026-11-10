@@ -20,6 +20,8 @@
 - Toda sugestão de endereço e todo endereço gravado carregam **cidade e país** obrigatórios. Razão: a busca varre as duas cidades juntas e a lista mistura países; a moeda decorre do país; e a taxa de travessia decorre de origem e destino estarem em países diferentes. (Nos dados reais só `Puente de la Concordia` se repete nos dois lados — a afirmação anterior de 14 nomes repetidos era artefato de uma divisão por latitude e foi corrigida na spec.)
 - Valores padrão de preço: base R$ 10,00 · 2,0 km inclusos · R$ 2,50/km · mínimo R$ 10,00 · noturno R$ 3,00 entre 23h e 05h · travessia R$ 8,00 · travessia com passageiro R$ 12,00.
 - Fallback de distância sem OSRM: haversine × **1,35**, marcado em `route_source`.
+- A ponte é 24h: **travessia nunca bloqueia por horário**; o que bloqueia é `service_hours` (regra do município), por cidade e por `kind`, com fim às 00:00.
+- Raio em três camadas: teto global em `settings` > `fleets.max_radius_km` > `couriers.work_radius_km`; toda alteração gera `courier_events` legível pelo dono da frota.
 - Posição do motoboy transmitida a cada **10 s ou 30 m**, o que vier primeiro, e só durante pedido ativo.
 - Animação apenas em `transform` e `opacity`. **Sem WebGL, sem three.js.** `prefers-reduced-motion` desliga o decorativo.
 - Todo preço renderizado usa **números tabulares** (`font-variant-numeric: tabular-nums`).
@@ -308,6 +310,69 @@ Expected: PASS, incluindo todas as negações
 
 ```bash
 git add -A && git commit -m "feat: RLS com cinco papéis e isolamento financeiro entre merchant e fleet"
+```
+
+---
+
+## Task 5b: Horário de serviço, hierarquia de raio e feed do dono
+
+Tarefa acrescentada depois do plano original, a partir de duas informações do dono do negócio: a ponte não tem horário (o limite é regra do município sobre o serviço), e o raio de atendimento deve ser configurável em camadas, com toda alteração visível ao dono da tele. O dado e a regra entram na Fatia 1 **porque o histórico só existe se for gravado desde já**; as telas do motoboy e do dono são as Fatias 3 e 4.
+
+**Files:**
+- Create: `supabase/migrations/0010_service_hours_e_raio.sql`, `supabase/migrations/0011_courier_events_rls.sql`
+- Test: `tests/db/service-hours.test.ts`, `tests/db/courier-radius.test.ts`
+
+**Interfaces:**
+- Consumes: `settings`, `couriers`, `fleets` (Tarefa 4); `current_role()`, `is_admin()`, padrão de policy e trigger de auditoria (Tarefa 5)
+- Produces: `settings['service_hours']` como jsonb por cidade e por `kind` · `fleets.max_radius_km` · `couriers.work_radius_km` · `couriers.is_available` · tabela `courier_events` com trigger · função `is_within_service_hours(city, kind, at timestamptz) returns boolean`, consumida pelas Tarefas 6 e 11
+
+- [ ] **Step 1: Escrever os testes que falham**
+
+```ts
+// service-hours
+test('remove a chave bridge_hours de settings: travessia nunca bloqueia por horário')
+test('service_hours tem entrada para quarai e artigas, cada uma com food, courier e ride')
+test('is_within_service_hours em 23:30 retorna true')
+test('is_within_service_hours em 00:30 retorna false')
+test('is_within_service_hours respeita cidade: uma pode fechar antes da outra')
+test('janela que cruza a meia-noite é avaliada corretamente')
+
+// courier-radius
+test('work_radius_km acima do max_radius_km da frota é rejeitado')
+test('work_radius_km igual ao máximo da frota é aceito')
+test('motoboy autônomo (fleet_id nulo) é limitado só pelo teto global de settings')
+test('dono reduzindo max_radius_km ajusta para baixo os motoboys acima do novo teto')
+test('cada ajuste forçado gera courier_events com kind capped_by_fleet')
+test('mudar work_radius_km gera courier_events radius_changed com from_value e to_value')
+test('is_online de false para true gera went_online; o inverso gera went_offline')
+test('is_available gera became_available e became_busy')
+test('courier_events grava fleet_id no momento do evento, e o histórico sobrevive à troca de frota')
+test('courier_events não é gravável pela aplicação, só pelo trigger')
+test('fleet lê courier_events dos motoboys da própria frota')
+test('fleet NÃO lê courier_events de motoboy de outra frota')
+test('courier lê os próprios courier_events e NÃO os de outro')
+test('client e merchant NÃO leem courier_events')
+test('ninguém, nem admin, altera ou apaga courier_events')
+```
+
+- [ ] **Step 2: Rodar e confirmar a falha**
+
+Run: `npx vitest run tests/db/service-hours.test.ts tests/db/courier-radius.test.ts`
+Expected: FAIL — colunas, função e tabela não existem
+
+- [ ] **Step 3: Implementar as migrations**
+
+`0010` remove `bridge_hours`, grava `service_hours` com fim 00:00 para os três `kind` nas duas cidades e início como configuração do admin, acrescenta `fleets.max_radius_km`, `couriers.work_radius_km` e `couriers.is_available`, cria `is_within_service_hours`, e instala o trigger que rejeita raio acima do teto da frota e o que ajusta para baixo quando o dono reduz o máximo. `0011` cria `courier_events`, o trigger que a alimenta a partir de `couriers` (nunca a aplicação) e as policies descritas acima.
+
+- [ ] **Step 4: Rodar e confirmar que passa**
+
+Run: `npx vitest run tests/db/service-hours.test.ts tests/db/courier-radius.test.ts tests/db/rls.test.ts tests/db/schema.test.ts`
+Expected: PASS, sem regressão nos testes da Tarefa 5
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add supabase/migrations tests/db && git commit -m "feat: horário de serviço por cidade e hierarquia de raio com feed do dono"
 ```
 
 ---

@@ -136,9 +136,25 @@ Idioma e moeda são campos separados e independentes.
 **`merchant_hours`** — `merchant_id`, `weekday` (0-6), `opens_at`, `closes_at`. Múltiplas faixas por dia permitidas (almoço e noite).
 Loja está aberta se: `status = approved` **e** `is_open_manual = true` **e** hora atual dentro de uma faixa.
 
-**`couriers`** — `profile_id`, `vehicle` (`moto` | `bike` | `carro`), `plate`, `base_city`, `accepts_cross_border`, `accepts_passenger`, `is_online`, `rating_avg`, `fleet_id` (FK `fleets`, nulável para autônomo), `status`.
+**`couriers`** — `profile_id`, `vehicle` (`moto` | `bike` | `carro`), `plate`, `base_city`, `accepts_cross_border`, `accepts_passenger`, `is_online`, `is_available`, **`work_radius_km`**, `rating_avg`, `fleet_id` (FK `fleets`, nulável para autônomo), `status`.
 
-**`fleets`** — `id`, `owner_id`, `name`, `city`, `phone`, `status`.
+**`fleets`** — `id`, `owner_id`, `name`, `city`, `phone`, **`max_radius_km`**, `status`.
+
+#### Raio de trabalho: hierarquia e visibilidade
+
+O raio de atendimento não é um número único do sistema. São três camadas, da mais ampla para a mais estreita:
+
+1. **`settings['service_radius_km']`** — teto global do produto, só o admin muda.
+2. **`fleets.max_radius_km`** — o dono da tele define o **máximo** que a frota dele atende.
+3. **`couriers.work_radius_km`** — cada motoboy escolhe o raio em que quer trabalhar, **sempre dentro do máximo da frota**. Um trigger rejeita valor acima do teto do dono; quando o dono reduz o máximo, os motoboys acima dele são ajustados para baixo no mesmo comando, e cada ajuste gera evento.
+
+Motoboy autônomo (`fleet_id` nulo) é limitado apenas pelo teto global.
+
+**`courier_events`** — `id`, `courier_id`, `fleet_id` (copiado no momento do evento, para o histórico sobreviver à troca de frota), `kind` (`radius_changed` | `went_online` | `went_offline` | `became_available` | `became_busy` | `capped_by_fleet`), `from_value`, `to_value`, `actor_id`, `created_at`.
+
+Gravada por trigger em `couriers`, nunca pela aplicação — assim nenhum caminho de código pode mudar o estado do motoboy sem deixar rastro. **O dono da tele lê os eventos dos motoboys da própria frota**, o motoboy lê os seus, o admin lê todos; mais ninguém. É isso que responde "quem trocou o raio, quem ficou disponível, quem saiu" sem o dono precisar perguntar.
+
+Esta tabela é separada de `audit_log` de propósito: `audit_log` é artefato de segurança de leitura exclusiva do admin, e alargar a RLS dele para incluir donos de frota criaria um caminho de vazamento. `courier_events` é um feed operacional, desenhado para ser lido pelo dono.
 
 ### 6.2 Catálogo
 
@@ -194,7 +210,11 @@ Base da estimativa: referências públicas de mercado — mínimo de cerca de R$
 **`fx_rates`** — `id`, `pair` (`BRL/UYU`), `rate`, `source` (`fxfeed` | `manual`), `spread_pct`, `is_manual_override`, `fetched_at`, `valid_for_date`.
 Atualização diária por cron. Se a API falhar, usa a última gravada e a interface exibe "cotação de DD/MM". Admin pode travar taxa manual e definir spread. Referência de ordem de grandeza observada: cerca de 7,7 a 8,0 UYU por BRL.
 
-**`settings`** — `key`, `value` (jsonb), `is_public`, `updated_by`, `updated_at`. Guarda textos da landing, banners, raio de atendimento, horário da ponte, URL do provedor de tiles, avisos, telefones de suporte.
+**`settings`** — `key`, `value` (jsonb), `is_public`, `updated_by`, `updated_at`. Guarda textos da landing, banners, teto global de raio de atendimento, **`service_hours` por cidade e por tipo de serviço**, URL do provedor de tiles, avisos, telefones de suporte.
+
+**Horário de serviço, não horário da ponte.** A ponte Quaraí–Artigas é **aberta 24 horas e não tem horário de funcionamento**. O limite real é regra do município sobre o serviço: tele de lanches e de passageiros atende **até 00:00**. Portanto a travessia nunca é bloqueada por horário, e o que bloqueia pedido é `service_hours`, guardado por cidade e por `kind` — as duas cidades são municípios de países diferentes e podem divergir. A hora de abertura é configuração do admin.
+
+Consequência registrada: com o expediente encerrando à meia-noite, a janela de adicional noturno (23:00–05:00) só é alcançável entre 23:00 e 00:00. Não é defeito, é efeito da regra municipal — mas o valor e a janela merecem revisão do dono.
 
 **`audit_log`** — `actor_id`, `actor_role`, `table_name`, `record_id`, `action`, `before` (jsonb), `after` (jsonb), `created_at`.
 
@@ -281,7 +301,7 @@ Endereços são salvos com apelido, então o segundo pedido é um toque.
 
 ### 9.4 Fronteira
 
-Pedido com `crosses_border = true`: taxa própria, aviso de documento para passageiro, ETA com folga de aduana, e oferta restrita a motoboys com `accepts_cross_border`. Horário da ponte é `setting`; fora dele, o pedido cruzado é recusado com explicação.
+Pedido com `crosses_border = true`: taxa própria, aviso de documento para passageiro, ETA com folga de aduana, e oferta restrita a motoboys com `accepts_cross_border`. A ponte é aberta 24 horas, então **a travessia nunca é recusada por horário**. O que limita é `service_hours` (regra do município sobre o serviço), aplicado a todo pedido, cruzado ou não.
 
 ---
 
