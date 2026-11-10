@@ -193,6 +193,21 @@ describe('hierarquia do raio', () => {
     expect(e.filter((r) => r.kind === 'radius_changed')).toEqual([])
   })
 
+  test('o rótulo capped_by_fleet não é forjável: com o GUC setado pela sessão, a mudança direta continua radius_changed', async () => {
+    // The trigger depth is the only thing that stops this: a direct UPDATE runs the events trigger at depth 1,
+    // the fleet's cap-down runs it nested at depth 2. Without that condition this event would say capped_by_fleet.
+    await actAs(db, courierQ1)
+    await db.query(`select set_config('app.courier_cap_reason', 'fleet', true)`)
+    await db.query(`update public.couriers set work_radius_km = 2 where profile_id = '${ID.courierQ1}'`)
+    const e = await events(`courier_id = '${ID.courierQ1}'`)
+    expect(e.map((r) => [r.kind, r.to_value])).toEqual([['radius_changed', '2.00']])
+    // and the legitimate path still produces the label
+    await asOwner(db, `update public.couriers set work_radius_km = 5 where profile_id = '${ID.courierQ1}'`)
+    await actAs(db, fleet1)
+    await db.query(`update public.fleets set max_radius_km = 3 where id = '${ID.fleet1}'`)
+    expect((await events(`courier_id = '${ID.courierQ1}' and kind = 'capped_by_fleet'`)).length).toBe(1)
+  })
+
   test('um motoboy abaixo do novo teto não gera evento nenhum', async () => {
     await actAs(db, fleet1)
     await db.query(`update public.fleets set max_radius_km = 3 where id = '${ID.fleet1}'`)

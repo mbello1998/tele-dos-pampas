@@ -133,6 +133,34 @@ describe('horário de serviço', () => {
     if (!b.ok) expect(b.message).toMatch(/service_hours[\s\S]*quarai[\s\S]*ride/)
   })
 
+  test('janela malformada falha FECHADO: erro explícito, nunca NULL (que `if not f()` trataria como aberto)', async () => {
+    const bad = async (patch: string, label: string) => {
+      await db.query(`update public.settings set value = jsonb_set(value, '{quarai,food}', '${patch}') where key = 'service_hours'`)
+      const r = await attempt(db, `select public.is_within_service_hours('quarai', 'food', '2026-11-10 03:00:00-03') as ok`)
+      expect(r.ok, `${label}: must raise, not return ${r.ok ? JSON.stringify(r.rows[0].ok) : ''}`).toBe(false)
+      if (!r.ok) expect(r.message, label).toMatch(/service_hours[\s\S]*quarai[\s\S]*food/)
+    }
+    await bad('{}', 'empty window')
+    await bad('{"opens":"06:00"}', 'missing closes')
+    await bad('{"closes":"00:00"}', 'missing opens')
+    await bad('{"opens":"06:00","closes":null}', 'null closes')
+    await bad('{"opens":"six","closes":"00:00"}', 'unreadable time')
+    await bad('{"opens":"25:99","closes":"00:00"}', 'out-of-range time')
+    // a non-object window was already refused: keep it pinned
+    await db.query(`update public.settings set value = jsonb_set(value, '{quarai,food}', '"06:00-00:00"') where key = 'service_hours'`)
+    const str = await attempt(db, `select public.is_within_service_hours('quarai', 'food', now())`)
+    expect(str.ok).toBe(false)
+  })
+
+  test('instante nulo é erro, não NULL; kind desconhecido também falha (fechado)', async () => {
+    const a = await attempt(db, `select public.is_within_service_hours('quarai', 'food', null)`)
+    expect(a.ok).toBe(false)
+    if (!a.ok) expect(a.message).toMatch(/must not be null/)
+    const b = await attempt(db, `select public.is_within_service_hours('quarai', 'teleport', now())`)
+    expect(b.ok).toBe(false) // 22P02 from the enum cast
+    if (!b.ok) expect(b.code).toBe('22P02')
+  })
+
   test('quem chama a função: logado sim, anônimo não (a chave em settings é pública)', async () => {
     await db.query(FIXTURE_SQL)
     await actAs(db, { uid: ID.clientA })
