@@ -1,0 +1,15 @@
+/* Tokens visuais "pampa". Tema escuro é o padrão. */
+:root {
+  --noite: #0B0F0D; /* fundo */
+  --sol: #F2A516;
+  --brasa: #D9452B;
+  --rio: #2E7D8C;
+  --campo: #1F4D3A;
+
+  color-scheme: dark;
+}
+
+/* Todo preço renderizado usa números tabulares. */
+.preco {
+  font-variant-numeric: tabular-nums;
+}
