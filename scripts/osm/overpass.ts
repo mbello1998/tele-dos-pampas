@@ -7,11 +7,12 @@
 export const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
 ]
 
 export const USER_AGENT = 'tele-dos-pampas-build/1.0'
 export const BACKOFF_MS = [2000, 4000, 8000, 16000, 32000]
+const REQUEST_TIMEOUT_MS = 130_000
 const RETRYABLE = new Set([429, 502, 504])
 
 export type OverpassNode = { lat: number; lon: number }
@@ -21,6 +22,16 @@ export type OverpassWay = {
   id: number
   tags?: Record<string, string>
   geometry?: OverpassNode[]
+}
+
+/** A node/way/relation answered with `out tags center`. */
+export type OverpassElement = {
+  type: 'node' | 'way' | 'relation'
+  id: number
+  lat?: number
+  lon?: number
+  center?: OverpassNode
+  tags?: Record<string, string>
 }
 
 export type OverpassMember = {
@@ -57,6 +68,7 @@ export async function overpassQuery<T>(
         const res = await doFetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
           method: 'GET',
           headers: { 'User-Agent': USER_AGENT },
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         })
         status = res.status
         if (res.ok) {

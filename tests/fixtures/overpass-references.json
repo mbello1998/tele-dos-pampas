@@ -1,0 +1,1552 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.7 375dc00a",
+  "osm3s": {
+    "timestamp_osm_base": "2026-09-17T16:49:24Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 3491459688,
+  "lat": -30.4012333,
+  "lon": -56.4643264,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "368",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "Bernabé Rivera",
+    "amenity": "fuel",
+    "brand": "Axion",
+    "operator": "Angeral SRL",
+    "phone": "+598 4772 1477;+598 4773 2356",
+    "ursea:cod_estacion": "103"
+  }
+},
+{
+  "type": "node",
+  "id": 3491459689,
+  "lat": -30.4015111,
+  "lon": -56.4650944,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "350",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "Presidente Tomás Berreta",
+    "amenity": "fuel",
+    "brand": "ANCAP",
+    "brand:wikidata": "Q2824522",
+    "operator": "Arosa SC",
+    "phone": "+598 4772 2934",
+    "ursea:cod_estacion": "104"
+  }
+},
+{
+  "type": "node",
+  "id": 3491459691,
+  "lat": -30.4035194,
+  "lon": -56.4702453,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "594",
+    "addr:state": "Artigas",
+    "addr:street": "Garzón",
+    "amenity": "school",
+    "name": "Liceo 1 Departamental de Artigas",
+    "operator": "Dirección General de Educación Secundaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q119732446",
+    "phone": "+598 4772 3351;+598 4772 3594",
+    "ref:UY:ruee": "1202001",
+    "ref:UY:rule_est": "3020080",
+    "short_name": "Liceo 1"
+  }
+},
+{
+  "type": "node",
+  "id": 3491462293,
+  "lat": -30.4032219,
+  "lon": -56.4697450,
+  "tags": {
+    "amenity": "place_of_worship",
+    "building": "church",
+    "denomination": "catholic",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 3491462294,
+  "lat": -30.4146145,
+  "lon": -56.4840727,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Avenida General José Gervasio Artigas",
+    "amenity": "fuel",
+    "brand": "ANCAP",
+    "brand:wikidata": "Q2824522",
+    "operator": "Tifelcar SA",
+    "phone": "+598 4772 6205",
+    "ursea:cod_estacion": "108"
+  }
+},
+{
+  "type": "node",
+  "id": 3799501035,
+  "lat": -30.4269845,
+  "lon": -56.4711257,
+  "tags": {
+    "addr:city": "Cerro San Eugenio",
+    "addr:street": "Argentina",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "Iglesia Evangelica Pentecostal",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 4339297775,
+  "lat": -30.4063267,
+  "lon": -56.4769146,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:housenumber": "910",
+    "addr:postcode": "55000",
+    "addr:street": "Sarandí",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "Iglesia Evangélica Pentecostal Cristiana",
+    "phone": "+598 4772 7790",
+    "religion": "christian",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 4339297776,
+  "lat": -30.4051619,
+  "lon": -56.4668184,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:housenumber": "417",
+    "addr:postcode": "55000",
+    "addr:street": "Treinta y Tres",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "Iglesia Pentecostal Dios es Amor",
+    "religion": "christian",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4341179987,
+  "lat": -30.4047497,
+  "lon": -56.4694479,
+  "tags": {
+    "amenity": "school",
+    "name": "Colegio Juan Pablo II",
+    "operator:type": "private"
+  }
+},
+{
+  "type": "node",
+  "id": 4341179988,
+  "lat": -30.3968199,
+  "lon": -56.4596387,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "18 de Julio",
+    "amenity": "school",
+    "name": "Escuela 71",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3991",
+    "ref:UY:ruee": "1102071",
+    "ref:UY:rule_est": "2020064"
+  }
+},
+{
+  "type": "node",
+  "id": 4341180346,
+  "lat": -30.4062829,
+  "lon": -56.4715598,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "740",
+    "addr:state": "Artigas",
+    "addr:street": "Avenida Lecueder",
+    "addr:suburb": "Nuevo Centro",
+    "amenity": "school",
+    "name": "Escuela 37 Barón de Río Branco",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2700",
+    "ref:UY:ruee": "1102037",
+    "ref:UY:rule_est": "2020036",
+    "short_name": "Escuela 37"
+  }
+},
+{
+  "type": "node",
+  "id": 4341971962,
+  "lat": -30.3923786,
+  "lon": -56.4685046,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:postcode": "55000",
+    "addr:street": "Juan Bautista Torres",
+    "amenity": "place_of_worship",
+    "denomination": "methodist",
+    "name": "Iglesia Metodista",
+    "religion": "christian",
+    "website": "http://metodistas-artigas.blogspot.com.uy/"
+  }
+},
+{
+  "type": "node",
+  "id": 4341971963,
+  "lat": -30.4131961,
+  "lon": -56.4649164,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:postcode": "55000",
+    "addr:street": "Wilson Ferreira Aldunate",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "IEPC Anexo",
+    "note": "Sede central en Sarandí 910",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 4342163960,
+  "lat": -30.3995646,
+  "lon": -56.4644185,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "248",
+    "addr:postcode": "55000",
+    "addr:street": "Avenida Coronel Carlos Lecueder",
+    "amenity": "pharmacy",
+    "delivery": "yes",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "name": "Horandre",
+    "phone": "+598 4772 3066",
+    "source": "http://1122.com.uy/local/farmacia-horandre/LOC370490001"
+  }
+},
+{
+  "type": "node",
+  "id": 4342171367,
+  "lat": -30.3996465,
+  "lon": -56.4659191,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:postcode": "55000",
+    "addr:street": "General Eugenio Garzón",
+    "amenity": "pharmacy",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "name": "Popular",
+    "phone": "+598 4772 2200",
+    "source": "http://1122.com.uy/local/farmacia-popular/LOC370200001"
+  }
+},
+{
+  "type": "node",
+  "id": 4562337490,
+  "lat": -30.4036917,
+  "lon": -56.4883283,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Enio Dos Santos Farías",
+    "addr:suburb": "Cheveste",
+    "amenity": "school",
+    "name": "Escuela 65",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 4126",
+    "ref:UY:ruee": "1102065",
+    "ref:UY:rule_est": "2020059"
+  }
+},
+{
+  "type": "node",
+  "id": 4562337589,
+  "lat": -30.4169037,
+  "lon": -56.4876277,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "1822",
+    "addr:state": "Artigas",
+    "addr:street": "Avenida Telmo García Da Rosa",
+    "addr:suburb": "Guayabos",
+    "amenity": "school",
+    "name": "Escuela 40 Agustín Ferreiro",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2971",
+    "ref:UY:ruee": "1102040",
+    "ref:UY:rule_est": "2020039",
+    "short_name": "Escuela 40"
+  }
+},
+{
+  "type": "node",
+  "id": 4567345893,
+  "lat": -30.3974542,
+  "lon": -56.4724453,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "366",
+    "addr:state": "Artigas",
+    "addr:street": "Cármen Laviaguerre",
+    "addr:suburb": "Bella Vista",
+    "amenity": "school",
+    "name": "Escuela 68 Italia",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3768",
+    "ref:UY:ruee": "1102068",
+    "ref:UY:rule_est": "2020062",
+    "short_name": "Escuela 68"
+  }
+},
+{
+  "type": "node",
+  "id": 4645716890,
+  "lat": -30.4010099,
+  "lon": -56.4272505,
+  "tags": {
+    "amenity": "fuel",
+    "name": "Posto São Cristovão"
+  }
+},
+{
+  "type": "node",
+  "id": 4645814989,
+  "lat": -30.3891569,
+  "lon": -56.4490688,
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:housenumber": "655",
+    "addr:postcode": "97560-000",
+    "addr:street": "Rua General Canabarro",
+    "contact:website": "http://www.baklizi.com.br/",
+    "name": "Baklizi",
+    "shop": "supermarket"
+  }
+},
+{
+  "type": "node",
+  "id": 4735586926,
+  "lat": -30.3869842,
+  "lon": -56.4492712,
+  "tags": {
+    "amenity": "fuel",
+    "name": "RodOil"
+  }
+},
+{
+  "type": "node",
+  "id": 4735589623,
+  "lat": -30.3789730,
+  "lon": -56.4607029,
+  "tags": {
+    "addr:postcode": "97560-000",
+    "addr:street": "Rua Doutor Ascânio Tubino",
+    "amenity": "hospital",
+    "healthcare": "hospital",
+    "name": "Fundação Hospital de Caridade de Quaraí",
+    "ref:CNES": "2248247",
+    "ref:vatin": "BR94757986000192"
+  }
+},
+{
+  "type": "node",
+  "id": 4735589921,
+  "lat": -30.3882195,
+  "lon": -56.4533649,
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:postcode": "97560-000",
+    "amenity": "fuel",
+    "name": "RodOil"
+  }
+},
+{
+  "type": "node",
+  "id": 5315821247,
+  "lat": -30.4076858,
+  "lon": -56.4726603,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "821",
+    "addr:postcode": "55000",
+    "addr:street": "Avenida Coronel Carlos Lecueder",
+    "amenity": "pharmacy",
+    "contact:facebook": "https://www.facebook.com/Farmacia-Zorrilla-1488709581186970/",
+    "contact:phone": "+598 4772 2221",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "healthcare": "pharmacy",
+    "name": "Zorrilla",
+    "opening_hours": "Mo-Fr 08:00-13:00, 15:00-22:00; Sa 08:00-13:00, 17:00-22:00"
+  }
+},
+{
+  "type": "node",
+  "id": 5417376561,
+  "lat": -30.4049616,
+  "lon": -56.4690471,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "336",
+    "addr:postcode": "55000",
+    "addr:street": "José Pedro Varela",
+    "amenity": "pharmacy",
+    "contact:phone": "+598 47722500;+598 47722748;+598 98190717",
+    "contact:website": "http://www.correo.com.uy/home",
+    "delivery": "yes",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "name": "Uruguay"
+  }
+},
+{
+  "type": "node",
+  "id": 5419111881,
+  "lat": -30.4023469,
+  "lon": -56.4658319,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "400",
+    "addr:postcode": "55000",
+    "addr:street": "Presidente Tomás Berreta",
+    "amenity": "pharmacy",
+    "contact:email": "pedidos@farmaciapollini.com.uy",
+    "contact:phone": "+598 4772 2792; 0800 8796; +598 98 683 606",
+    "contact:website": "http://farmaciapollini.com.uy/",
+    "drive_through": "no",
+    "name": "Pollini",
+    "opening_hours": "Mo-Su 08:00-22:00",
+    "payment:visa_debit": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 5438606854,
+  "lat": -30.4092205,
+  "lon": -56.4776580,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "1124",
+    "addr:postcode": "55000",
+    "addr:street": "Avenida General José Gervasio Artigas",
+    "amenity": "pharmacy",
+    "contact:phone": "+598 4772 6990",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "name": "Don Carlos"
+  }
+},
+{
+  "type": "node",
+  "id": 5466381160,
+  "lat": -30.3979945,
+  "lon": -56.4642445,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:postcode": "55000",
+    "addr:street": "General Eugenio Garzón",
+    "amenity": "place_of_worship",
+    "denomination": "catholic",
+    "name": "Iglesia San Eugenio del Cuareim",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 5478739271,
+  "lat": -30.3871363,
+  "lon": -56.4521170,
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:housenumber": "698",
+    "addr:postcode": "97560-000",
+    "addr:street": "Avenida 7 de Setembro",
+    "amenity": "pharmacy",
+    "contact:email": "aga293@agafarma.com.br",
+    "contact:facebook": "https://www.facebook.com/pg/agafarmaquarai/",
+    "contact:phone": "+55 55 3423-2134",
+    "contact:website": "http://www.agafarma.com.br/",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "healthcare": "pharmacy",
+    "name": "Agafarma",
+    "opening_hours": "Mo-Sa 08:00-22:00"
+  }
+},
+{
+  "type": "node",
+  "id": 5478809762,
+  "lat": -30.3884369,
+  "lon": -56.4488254,
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:postcode": "97560-000",
+    "amenity": "fuel",
+    "brand": "Shell",
+    "brand:wikidata": "Q110716465",
+    "brand:wikipedia": "en:Royal Dutch Shell",
+    "name": "Shell"
+  }
+},
+{
+  "type": "node",
+  "id": 5478860795,
+  "lat": -30.3906950,
+  "lon": -56.4520592,
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:postcode": "97560-000",
+    "amenity": "fuel",
+    "brand": "Ipiranga",
+    "brand:wikidata": "Q2081136",
+    "brand:wikipedia": "pt:Ipiranga (empresa)",
+    "name": "Ipiranga"
+  }
+},
+{
+  "type": "node",
+  "id": 5483633336,
+  "lat": -30.4050055,
+  "lon": -56.4713213,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:postcode": "55000",
+    "addr:street": "General Eugenio Garzón",
+    "amenity": "school",
+    "name": "Colegio Tacuabé",
+    "operator:type": "private"
+  }
+},
+{
+  "type": "node",
+  "id": 5492363551,
+  "lat": -30.4045632,
+  "lon": -56.4652397,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "476",
+    "addr:postcode": "55000",
+    "addr:street": "General Manuel Oribe",
+    "amenity": "pharmacy",
+    "contact:phone": "+598 4772 4675",
+    "delivery": "yes",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "healthcare": "pharmacy",
+    "name": "SaGa",
+    "payment:creditel": "yes",
+    "payment:oca_card": "yes",
+    "payment:visa": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 5506624470,
+  "lat": -30.4031355,
+  "lon": -56.4691447,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "539",
+    "addr:postcode": "55000",
+    "addr:street": "General Eugenio Garzón",
+    "amenity": "pharmacy",
+    "dispensing": "yes",
+    "drive_through": "no",
+    "name": "Mayra"
+  }
+},
+{
+  "type": "node",
+  "id": 5533508141,
+  "lat": -30.4036152,
+  "lon": -56.4684059,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "533",
+    "addr:postcode": "55000",
+    "addr:street": "Avenida Coronel Carlos Lecueder",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "Universal",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 9893333983,
+  "lat": -30.3864301,
+  "lon": -56.4521675,
+  "tags": {
+    "amenity": "pharmacy",
+    "brand": "Panvel",
+    "brand:wikidata": "Q10344254",
+    "dispensing": "yes",
+    "healthcare": "pharmacy",
+    "name": "Panvel"
+  }
+},
+{
+  "type": "node",
+  "id": 9893342124,
+  "lat": -30.3881218,
+  "lon": -56.4524795,
+  "tags": {
+    "amenity": "place_of_worship",
+    "name": "Igreja Matriz de Quaraí",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 9894031933,
+  "lat": -30.3871273,
+  "lon": -56.4504354,
+  "tags": {
+    "name": "Supermercados Righi Quaraí Macro",
+    "shop": "supermarket"
+  }
+},
+{
+  "type": "node",
+  "id": 9894038668,
+  "lat": -30.3876322,
+  "lon": -56.4505011,
+  "tags": {
+    "amenity": "place_of_worship",
+    "name": "Igreja Universal do Reino de Deus",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 9894048228,
+  "lat": -30.3908877,
+  "lon": -56.4494276,
+  "tags": {
+    "name": "Super Engenho",
+    "shop": "supermarket"
+  }
+},
+{
+  "type": "node",
+  "id": 11203721126,
+  "lat": -30.4030513,
+  "lon": -56.4661641,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "357",
+    "addr:state": "Artigas",
+    "addr:street": "Doctor Luis Alberto de Herrera",
+    "amenity": "school",
+    "name": "Escuela 1 Artigas",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3081",
+    "ref:UY:ruee": "1102001",
+    "ref:UY:rule_est": "2020001",
+    "short_name": "Escuela 1",
+    "wikidata": "Q119824364"
+  }
+},
+{
+  "type": "node",
+  "id": 11432012837,
+  "lat": -30.4337259,
+  "lon": -56.4575386,
+  "tags": {
+    "addr:city": "Pintadito",
+    "addr:country": "UY",
+    "addr:housenumber": "201",
+    "addr:state": "Artigas",
+    "addr:street": "Ángel Chaia",
+    "amenity": "school",
+    "name": "Escuela 36 Dorsolina Borba",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 0155",
+    "ref:UY:ruee": "1102036",
+    "ref:UY:rule_est": "2020035",
+    "short_name": "Escuela 36",
+    "wikidata": "Q119825799"
+  }
+},
+{
+  "type": "node",
+  "id": 11432012838,
+  "lat": -30.4342127,
+  "lon": -56.4571497,
+  "tags": {
+    "addr:city": "Pintadito",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Principal Ángel Chaia",
+    "amenity": "school",
+    "name": "Liceo 5",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Secundaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q119732446",
+    "phone": "+598 4772 6838",
+    "ref:UY:ruee": "1202015",
+    "ref:UY:rule_est": "2020035",
+    "wikidata": "Q119827383"
+  }
+},
+{
+  "type": "node",
+  "id": 11481509745,
+  "lat": -30.4225868,
+  "lon": -56.4929769,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Ruta 30 Km 5 Ejido de la ciudad",
+    "amenity": "school",
+    "name": "Escuela Agraria Artigas",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Técnico Profesional",
+    "operator:type": "public",
+    "operator:wikidata": "Q118492877",
+    "phone": "+598 4772 4460",
+    "ref:UY:ruee": "1302023",
+    "ref:UY:rule_est": "4020093"
+  }
+},
+{
+  "type": "node",
+  "id": 11481509747,
+  "lat": -30.3976767,
+  "lon": -56.4647804,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "183",
+    "addr:state": "Artigas",
+    "addr:street": "Diego Lamas",
+    "amenity": "school",
+    "name": "Liceo 4 de Artigas",
+    "operator": "Dirección General de Educación Secundaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q119732446",
+    "phone": "+598 4772 0323",
+    "ref:UY:ruee": "1202010",
+    "ref:UY:rule_est": "3020083",
+    "short_name": "Liceo 4"
+  }
+},
+{
+  "type": "node",
+  "id": 11481522662,
+  "lat": -30.4162107,
+  "lon": -56.4601502,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Carlos M. Perichon",
+    "addr:suburb": "Ayui",
+    "amenity": "school",
+    "name": "Escuela 83",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 5283",
+    "ref:UY:ruee": "1102083",
+    "ref:UY:rule_est": "2020075"
+  }
+},
+{
+  "type": "node",
+  "id": 11481531393,
+  "lat": -30.4128566,
+  "lon": -56.4586485,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Feliciano Viera",
+    "addr:suburb": "Ayui",
+    "amenity": "school",
+    "name": "Escuela 79 Coronel Lorenzo Latorre",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3401",
+    "ref:UY:ruee": "1102079",
+    "ref:UY:rule_est": "2020072",
+    "short_name": "Escuela 79"
+  }
+},
+{
+  "type": "node",
+  "id": 11481531394,
+  "lat": -30.4030959,
+  "lon": -56.4662006,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "357",
+    "addr:state": "Artigas",
+    "addr:street": "Doctor Luis Alberto de Herrera",
+    "amenity": "school",
+    "name": "Escuela 2 España",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3081",
+    "ref:UY:ruee": "1102002",
+    "ref:UY:rule_est": "2020001",
+    "short_name": "Escuela 2",
+    "wikidata": "Q119825136"
+  }
+},
+{
+  "type": "node",
+  "id": 11481531395,
+  "lat": -30.3973014,
+  "lon": -56.4591195,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:description": "y Aparicio Saravia",
+    "addr:housenumber": "386",
+    "addr:state": "Artigas",
+    "addr:street": "18 de Julio",
+    "amenity": "school",
+    "name": "Escuela 72 Enriqueta Compte y Riqué",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3612",
+    "ref:UY:ruee": "1102072",
+    "ref:UY:rule_est": "2020065",
+    "short_name": "Escuela 72"
+  }
+},
+{
+  "type": "node",
+  "id": 11481531571,
+  "lat": -30.3998725,
+  "lon": -56.4655075,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "257",
+    "addr:state": "Artigas",
+    "addr:street": "Bernabé Rivera",
+    "amenity": "school",
+    "name": "Centro Educativo Doctor Pedro Figari",
+    "operator": "Dirección General de Educación Técnico Profesional",
+    "operator:type": "public",
+    "operator:wikidata": "Q118492877",
+    "phone": "+598 4772 5681;+598 4772 5805",
+    "ref:UY:ruee": "1302111",
+    "ref:UY:rule_est": "4020096"
+  }
+},
+{
+  "type": "node",
+  "id": 11481532470,
+  "lat": -30.4006043,
+  "lon": -56.4613395,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "235",
+    "addr:state": "Artigas",
+    "addr:street": "Manuel Oribe",
+    "amenity": "school",
+    "name": "Escuela 54",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3621",
+    "ref:UY:ruee": "1102054",
+    "ref:UY:rule_est": "2020052"
+  }
+},
+{
+  "type": "node",
+  "id": 11481532471,
+  "lat": -30.3936411,
+  "lon": -56.4621064,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:description": "y Paul Harris",
+    "addr:state": "Artigas",
+    "addr:street": "Doctor Manuel G. Terán",
+    "amenity": "school",
+    "name": "Escuela 73 Paul Harris",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2762",
+    "ref:UY:ruee": "1102073",
+    "ref:UY:rule_est": "2020066",
+    "short_name": "Escuela 73"
+  }
+},
+{
+  "type": "node",
+  "id": 11481532472,
+  "lat": -30.4154577,
+  "lon": -56.4613725,
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Wilson Ferreira Aldunate",
+    "addr:suburb": "Éxodo",
+    "amenity": "school",
+    "name": "Escuela 70 Daniel Fernández Crespo",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3270",
+    "ref:UY:ruee": "1102070",
+    "ref:UY:rule_est": "2020063",
+    "short_name": "Escuela 70"
+  }
+},
+{
+  "type": "node",
+  "id": 14201565784,
+  "lat": -30.3670122,
+  "lon": -56.4524261,
+  "tags": {
+    "amenity": "clinic",
+    "healthcare": "clinic",
+    "name": "ESF PROFLURB"
+  }
+},
+{
+  "type": "way",
+  "id": 52430150,
+  "center": {
+    "lat": -30.3921966,
+    "lon": -56.4554189
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "primary",
+    "layer": "1",
+    "name": "Puente de la Concordia",
+    "source": "Yahoo"
+  }
+},
+{
+  "type": "way",
+  "id": 101983713,
+  "center": {
+    "lat": -30.4055233,
+    "lon": -56.4657265
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza España"
+  }
+},
+{
+  "type": "way",
+  "id": 101983739,
+  "center": {
+    "lat": -30.4054309,
+    "lon": -56.4662021
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza Italia"
+  }
+},
+{
+  "type": "way",
+  "id": 102007273,
+  "center": {
+    "lat": -30.4038411,
+    "lon": -56.4695043
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza José Batlle y Ordóñez"
+  }
+},
+{
+  "type": "way",
+  "id": 232400291,
+  "center": {
+    "lat": -30.4045265,
+    "lon": -56.4686521
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza José Batlle y Ordóñez"
+  }
+},
+{
+  "type": "way",
+  "id": 249788919,
+  "center": {
+    "lat": -30.3984084,
+    "lon": -56.4637791
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza Artigas"
+  }
+},
+{
+  "type": "way",
+  "id": 298606801,
+  "center": {
+    "lat": -30.4154567,
+    "lon": -56.4636022
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza Fabini"
+  }
+},
+{
+  "type": "way",
+  "id": 329166945,
+  "center": {
+    "lat": -30.3946771,
+    "lon": -56.4590317
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "primary",
+    "layer": "1",
+    "name": "Puente de la Concordia",
+    "note": "Categorizada primary por continuidad de Ruta 30 con Puente Internacional"
+  }
+},
+{
+  "type": "way",
+  "id": 329166946,
+  "center": {
+    "lat": -30.3935804,
+    "lon": -56.4577260
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "primary",
+    "layer": "1",
+    "name": "Puente de la Concordia",
+    "note": "Categorizada primary por continuidad de Ruta 30 con Puente Internacional"
+  }
+},
+{
+  "type": "way",
+  "id": 376971201,
+  "center": {
+    "lat": -30.4261435,
+    "lon": -56.4663228
+  },
+  "tags": {
+    "addr:city": "Cerro Ejido",
+    "addr:street": "Principal",
+    "amenity": "school",
+    "name": "Escuela 90",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "phone": "+598 4772 5166"
+  }
+},
+{
+  "type": "way",
+  "id": 436028608,
+  "center": {
+    "lat": -30.3939099,
+    "lon": -56.4677855
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "235",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "Amaro Ferreira Ramos",
+    "addr:suburb": "Aldea",
+    "amenity": "school",
+    "name": "Escuela 43 José Pedro Varela",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2545",
+    "ref:UY:ruee": "1102043",
+    "ref:UY:rule_est": "2020042",
+    "short_name": "Escuela 43"
+  }
+},
+{
+  "type": "way",
+  "id": 436028609,
+  "center": {
+    "lat": -30.3933852,
+    "lon": -56.4686849
+  },
+  "tags": {
+    "description": "Plaza abierta con juegos, canchas de fútbol (arena) y basketball. Cuenta con un Caif (Caif Camalote) sobre la calle 18 de Mayo",
+    "leisure": "park",
+    "name": "Plaza Catalá",
+    "official_name": "Plaza Carlos Catalá"
+  }
+},
+{
+  "type": "way",
+  "id": 436028610,
+  "center": {
+    "lat": -30.4030681,
+    "lon": -56.4575358
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:postcode": "55000",
+    "addr:street": "Eduardo M. Castro",
+    "amenity": "hospital",
+    "description": "Hospital público. La emergencia es por General Rivera. El edificio central es para niños; la parte nueva se ubica sobre la calle General Rivera; la parte vieja son los edificios más al Este.",
+    "emergency": "yes",
+    "name": "Hospital Departamental de Artigas",
+    "note": "OFICINA DE ATENCIÓN AL USUARIO: Teléfono: 4772 3701 int. 219. Horario: 09:00 a 12:30 hs. Entrada para vehículos por la calle Eduardo M. Castro",
+    "phone": "+598 4772 3701",
+    "source": "http://www.asse.com.uy/contenido/Hospital-de-Artigas-5250",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 436028611,
+  "center": {
+    "lat": -30.4046986,
+    "lon": -56.4634254
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:housenumber": "539",
+    "addr:postcode": "55000",
+    "addr:street": "Doctor Luis Alberto de Herrera",
+    "building": "retail",
+    "delivery": "yes",
+    "description": "Entregas a domicilio: Se realizan envíos pasando los $1.000",
+    "name": "Hyper Ta-Ta",
+    "note": "Entregas a domicilio: Se realizan envíos pasando los $1.000",
+    "opening_hours": "Mo-Su 08:00-22:00",
+    "phone": "+598 4772 8256",
+    "shop": "supermarket",
+    "source": "http://institucional.tata.com.uy/locales/hiper-artigas/",
+    "website": "https://www.tata.com.uy/",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 436245024,
+  "center": {
+    "lat": -30.3969399,
+    "lon": -56.4636359
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:postcode": "55000",
+    "addr:street": "18 de Mayo",
+    "amenity": "place_of_worship",
+    "denomination": "mormon",
+    "name": "La Iglesia de Jesucristo de los Santos de los Últimos Días",
+    "religion": "christian"
+  }
+},
+{
+  "type": "way",
+  "id": 436245025,
+  "center": {
+    "lat": -30.4093877,
+    "lon": -56.4706184
+  },
+  "tags": {
+    "amenity": "place_of_worship",
+    "denomination": "mormon",
+    "name": "La Iglesia de Jesucristo de los Santos de los Últimos Días",
+    "religion": "christian"
+  }
+},
+{
+  "type": "way",
+  "id": 436245028,
+  "center": {
+    "lat": -30.4088340,
+    "lon": -56.4769974
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza Zorrilla",
+    "official_name": "Plaza Juan Zorrilla de San Martín"
+  }
+},
+{
+  "type": "way",
+  "id": 436326871,
+  "center": {
+    "lat": -30.4024416,
+    "lon": -56.4756261
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "10",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "General Garibaldi",
+    "addr:suburb": "Las Flores",
+    "amenity": "school",
+    "building": "school",
+    "name": "Escuela 8 Brigadier General Juan Antonio Lavalleja",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2735",
+    "ref:UY:ruee": "1102008",
+    "ref:UY:rule_est": "2020007",
+    "short_name": "Escuela 8",
+    "website": "http://escuelan8deartigas.blogspot.com.uy/",
+    "wikidata": "Q119826654"
+  }
+},
+{
+  "type": "way",
+  "id": 436329293,
+  "center": {
+    "lat": -30.4047883,
+    "lon": -56.4603573
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "626",
+    "addr:state": "Artigas",
+    "addr:street": "Bernabé Rivera",
+    "amenity": "school",
+    "name": "Escuela Técnica Artigas",
+    "operator": "Dirección General de Educación Técnico Profesional",
+    "operator:type": "public",
+    "operator:wikidata": "Q118492877",
+    "phone": "+598 4772 3687;+598 4772 5988",
+    "ref:UY:ruee": "1302021",
+    "ref:UY:rule_est": "4020092",
+    "wikidata": "Q119826999"
+  }
+},
+{
+  "type": "way",
+  "id": 436329295,
+  "center": {
+    "lat": -30.4043592,
+    "lon": -56.4625463
+  },
+  "tags": {
+    "leisure": "park",
+    "name": "Plaza de los Niños"
+  }
+},
+{
+  "type": "way",
+  "id": 444457474,
+  "center": {
+    "lat": -30.4053954,
+    "lon": -56.4608159
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "356",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "Avenida Bernardina Fragoso de Rivera",
+    "amenity": "school",
+    "name": "Liceo 2 de Artigas",
+    "operator": "Dirección General de Educación Secundaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q119732446",
+    "phone": "+598 4772 4740;+598 4772 4239",
+    "ref:UY:ruee": "1202004",
+    "ref:UY:rule_est": "3020081",
+    "short_name": "Liceo 2",
+    "website": "http://liceo2artigas.blogspot.com.uy",
+    "wikidata": "Q119827312"
+  }
+},
+{
+  "type": "way",
+  "id": 446943497,
+  "center": {
+    "lat": -30.3951336,
+    "lon": -56.4616860
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:housenumber": "237",
+    "addr:postcode": "55000",
+    "addr:street": "18 de Julio",
+    "amenity": "hospital",
+    "building": "hospital",
+    "building:levels": "1",
+    "healthcare": "hospital",
+    "name": "Red de Atención Primaria de Salud",
+    "operator": "ASSE",
+    "phone": "+598 477 26009",
+    "website": "http://www.asse.com.uy/contenido/RAP-Artigas-5235",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 446943498,
+  "center": {
+    "lat": -30.3952970,
+    "lon": -56.4614785
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:postcode": "55000",
+    "addr:street": "18 de Julio",
+    "amenity": "hospital",
+    "building": "hospital",
+    "building:levels": "3",
+    "emergency": "yes",
+    "healthcare": "hospital",
+    "name": "GREMEDA",
+    "official_name": "Gremial Médica de Artigas",
+    "phone": "+598 477 24001",
+    "website": "https://www.gremeda.com.uy/",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 560254541,
+  "center": {
+    "lat": -30.4055148,
+    "lon": -56.4694108
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "640",
+    "addr:postcode": "55000",
+    "addr:street": "Presidente Tomás Berreta",
+    "amenity": "hospital",
+    "contact:phone": "+598 47727132",
+    "contact:website": "http://normedica.placeweb.site/",
+    "healthcare": "hospital",
+    "name": "NorMédica"
+  }
+},
+{
+  "type": "way",
+  "id": 570133204,
+  "center": {
+    "lat": -30.3871715,
+    "lon": -56.4487386
+  },
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:housenumber": "677",
+    "addr:postcode": "97560-000",
+    "addr:street": "Rua João Batista de Castilhos",
+    "building": "yes",
+    "contact:phone": "+55 55 3423-1721",
+    "contact:website": "http://www.righi.com.br/",
+    "name": "Righi",
+    "shop": "supermarket"
+  }
+},
+{
+  "type": "way",
+  "id": 570134070,
+  "center": {
+    "lat": -30.3912107,
+    "lon": -56.4519375
+  },
+  "tags": {
+    "addr:city": "Quaraí",
+    "addr:country": "BR",
+    "addr:postcode": "97560-000",
+    "addr:street": "Avenida Artigas",
+    "building": "yes",
+    "contact:website": "http://www.righi.com.br/",
+    "name": "Righi",
+    "shop": "supermarket"
+  }
+},
+{
+  "type": "way",
+  "id": 1225326777,
+  "center": {
+    "lat": -30.4051946,
+    "lon": -56.4599254
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "358",
+    "addr:postcode": "55000",
+    "addr:state": "Artigas",
+    "addr:street": "Bernardina Fragoso de Rivera",
+    "amenity": "school",
+    "name": "Escuela Técnica Artigas 2",
+    "operator": "Dirección General de Educación Técnico Profesional",
+    "operator:type": "public",
+    "operator:wikidata": "Q118492877",
+    "phone": "+598 4772 5988",
+    "ref:UY:ruee": "1302031",
+    "ref:UY:rule_est": "4020105",
+    "wheelchair": "limited",
+    "wikidata": "Q119827000"
+  }
+},
+{
+  "type": "way",
+  "id": 1225326780,
+  "center": {
+    "lat": -30.4067589,
+    "lon": -56.4609067
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "413",
+    "addr:state": "Artigas",
+    "addr:street": "Bernardina Fragoso de Rivera",
+    "addr:suburb": "San Miguel",
+    "amenity": "school",
+    "name": "Escuela 56 Eladio F. Dieste",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 2983",
+    "ref:UY:ruee": "1102056",
+    "ref:UY:rule_est": "2020053",
+    "short_name": "Escuela 56",
+    "wikidata": "Q119826234"
+  }
+},
+{
+  "type": "way",
+  "id": 1238131228,
+  "center": {
+    "lat": -30.4115157,
+    "lon": -56.4712381
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:state": "Artigas",
+    "addr:street": "Blas Melo",
+    "amenity": "school",
+    "name": "Liceo 3 Maestro Valeriano Renart",
+    "nohousenumber": "yes",
+    "operator": "Dirección General de Educación Secundaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q119732446",
+    "phone": "+598 4772 4857",
+    "ref:UY:ruee": "1202009",
+    "ref:UY:rule_est": "3020082",
+    "short_name": "Liceo 3",
+    "wikidata": "Q119827364"
+  }
+},
+{
+  "type": "way",
+  "id": 1238131230,
+  "center": {
+    "lat": -30.4115798,
+    "lon": -56.4706255
+  },
+  "tags": {
+    "addr:city": "Artigas",
+    "addr:country": "UY",
+    "addr:housenumber": "520",
+    "addr:state": "Artigas",
+    "addr:street": "20 de Setiembre",
+    "addr:suburb": "25 de Agosto",
+    "amenity": "school",
+    "name": "Escuela 17",
+    "operator": "Dirección General de Educación Inicial y Primaria",
+    "operator:type": "public",
+    "operator:wikidata": "Q5783994",
+    "phone": "+598 4772 3874",
+    "ref:UY:ruee": "1102017",
+    "ref:UY:rule_est": "2020016",
+    "wikidata": "Q119825021"
+  }
+}
+
+  ]
+}

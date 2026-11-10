@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildDataset } from '../../scripts/osm/build-dataset'
-import type { OverpassWay } from '../../scripts/osm/overpass'
+import type { OverpassElement, OverpassWay } from '../../scripts/osm/overpass'
 import type { City, Polygon, Street } from '@/lib/geo/types'
 
 const root = join(__dirname, '..', '..')
@@ -116,5 +116,61 @@ test('nameNormalized vem de normalizeStreetName e coordenadas têm 5 casas', () 
       expect(Math.round(p.lat * 1e5) / 1e5).toBe(p.lat)
       expect(Math.round(p.lng * 1e5) / 1e5).toBe(p.lng)
     }
+  }
+})
+
+const boundaries = { quarai: boundary('quarai'), artigas: boundary('artigas') }
+const references = (
+  JSON.parse(readFileSync(join(root, 'tests/fixtures/overpass-references.json'), 'utf8')) as {
+    elements: OverpassElement[]
+  }
+).elements
+
+test('via fora dos dois polígonos vai para a cidade mais próxima, com outsideUrban', () => {
+  // Ruta 30 (lat -30.427) lies in neither polygon, and is nearest to Artigas.
+  const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries })
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries })
+  expect(q.streets.map((s) => s.name)).not.toContain('Ruta 30')
+  const ruta = byName(a.streets, 'Ruta 30')
+  expect(ruta?.outsideUrban).toBe(true)
+  expect(ruta?.country).toBe('UY')
+  // Streets inside a polygon are not flagged.
+  expect(byName(a.streets, '18 de Julio')?.outsideUrban).toBeUndefined()
+})
+
+test('via a mais de 15 km de ambas as cidades é descartada', () => {
+  const far: OverpassWay = {
+    type: 'way',
+    id: 2,
+    tags: { name: 'Ruta Lejana', highway: 'secondary' },
+    geometry: [
+      { lat: -30.9, lon: -56.0 },
+      { lat: -30.91, lon: -56.01 },
+    ],
+  }
+  for (const city of ['quarai', 'artigas'] as const) {
+    const d = buildDataset([...ways, far], boundaries[city], city, { boundaries })
+    expect(d.streets.map((s) => s.name)).not.toContain('Ruta Lejana')
+  }
+})
+
+test('as duas cidades devolvem referências, cada uma com sua cidade', () => {
+  const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries, references })
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
+  expect(q.references.length).toBeGreaterThan(0)
+  expect(a.references.length).toBeGreaterThan(0)
+  for (const r of q.references) expect(r.city).toBe('quarai')
+  for (const r of a.references) expect(r.city).toBe('artigas')
+  // No reference appears in both cities.
+  const qIds = new Set(q.references.map((r) => r.id))
+  expect(a.references.some((r) => qIds.has(r.id))).toBe(false)
+  // Coordinates are rounded to 5 decimals and every entry has a kind.
+  for (const r of [...q.references, ...a.references]) {
+    expect(Math.round(r.at.lat * 1e5) / 1e5).toBe(r.at.lat)
+    expect(r.kind.length).toBeGreaterThan(0)
+  }
+  const kinds = new Set([...q.references, ...a.references].map((r) => r.kind))
+  for (const k of ['fuel', 'school', 'church', 'hospital', 'pharmacy', 'supermarket', 'plaza', 'bridge']) {
+    expect(kinds).toContain(k)
   }
 })

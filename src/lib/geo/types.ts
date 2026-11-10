@@ -19,6 +19,8 @@ export type Street = {
   country: Country
   segments: LatLng[][]
   intersections: Intersection[]
+  /** True when the street lies outside the city's urban boundary (rural road or outlying barrio). */
+  outsideUrban?: boolean
 }
 
 export type Reference = { id: string; name: string; kind: string; at: LatLng; city: City }
