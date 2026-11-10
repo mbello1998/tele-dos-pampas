@@ -48,43 +48,80 @@ export type OverpassRelation = {
   members?: OverpassMember[]
 }
 
-export type OverpassResponse<T> = { elements: T[] }
+
+export type OverpassResponse<T> = {
+  elements: T[]
+  /** Present when Overpass hit a timeout / out-of-memory and returned a PARTIAL answer with HTTP 200. */
+  remark?: string
+  osm3s?: { timestamp_osm_base?: string }
+}
+
+/** Where a result came from: which mirror answered and the OSM data vintage. */
+export type OverpassMeta = { mirror: string; osmBaseTimestamp: string | null }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-export async function overpassQuery<T>(
+export type OverpassOptions = {
+  endpoints?: string[]
+  backoffMs?: number[]
+  fetchImpl?: typeof fetch
+  /** Progress/provenance log; defaults to console.log. */
+  log?: (line: string) => void
+}
+
+/**
+ * Runs a query and returns elements plus provenance. Fails loudly on a
+ * `remark` (truncated answer). A timeout or network error moves on to the
+ * next mirror immediately; 429/502/504 back off and retry on the same host.
+ */
+export async function overpassQueryWithMeta<T>(
   query: string,
-  opts: { endpoints?: string[]; backoffMs?: number[]; fetchImpl?: typeof fetch } = {},
-): Promise<T[]> {
+  opts: OverpassOptions = {},
+): Promise<{ elements: T[]; meta: OverpassMeta }> {
   const endpoints = opts.endpoints ?? OVERPASS_ENDPOINTS
   const backoff = opts.backoffMs ?? BACKOFF_MS
   const doFetch = opts.fetchImpl ?? fetch
+  const log = opts.log ?? ((line: string) => console.log(line))
   const failures: string[] = []
 
   for (const endpoint of endpoints) {
     for (let attempt = 0; attempt <= backoff.length; attempt++) {
-      let status = 0
+      let res: Response
       try {
-        const res = await doFetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
+        res = await doFetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
           method: 'GET',
           headers: { 'User-Agent': USER_AGENT },
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         })
-        status = res.status
-        if (res.ok) {
-          const body = (await res.json()) as OverpassResponse<T>
-          return body.elements
-        }
       } catch (err) {
-        failures.push(`${endpoint}: ${(err as Error).message}`)
-      }
-      if (status !== 0 && !RETRYABLE.has(status)) {
-        failures.push(`${endpoint}: HTTP ${status} (not retryable)`)
+        // Timeout or network error: do not retry this host, try the next mirror.
+        const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+        failures.push(`${endpoint}: ${timedOut ? 'timeout' : (err as Error).message}`)
         break
       }
-      if (status !== 0) failures.push(`${endpoint}: HTTP ${status}`)
+
+      if (res.ok) {
+        const body = (await res.json()) as OverpassResponse<T>
+        if (body.remark) {
+          failures.push(`${endpoint}: truncated answer (remark: ${body.remark})`)
+          break
+        }
+        const meta = { mirror: endpoint, osmBaseTimestamp: body.osm3s?.timestamp_osm_base ?? null }
+        log(`overpass: ${endpoint} answered, OSM base ${meta.osmBaseTimestamp ?? 'unknown'}`)
+        return { elements: body.elements, meta }
+      }
+
+      if (!RETRYABLE.has(res.status)) {
+        failures.push(`${endpoint}: HTTP ${res.status} (not retryable)`)
+        break
+      }
+      failures.push(`${endpoint}: HTTP ${res.status}`)
       if (attempt < backoff.length) await sleep(backoff[attempt])
     }
   }
   throw new Error(`Overpass query failed on every mirror:\n${failures.join('\n')}`)
+}
+
+export async function overpassQuery<T>(query: string, opts: OverpassOptions = {}): Promise<T[]> {
+  return (await overpassQueryWithMeta<T>(query, opts)).elements
 }

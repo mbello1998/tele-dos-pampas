@@ -25,9 +25,14 @@ export type Street = {
 
 export type Reference = { id: string; name: string; kind: string; at: LatLng; city: City }
 
+/** Where one Overpass answer came from: the mirror and the OSM data vintage. */
+export type SourceInfo = { mirror: string; osmBaseTimestamp: string | null }
+export type DatasetSource = { streets: SourceInfo; references: SourceInfo }
+
 export type StreetDataset = {
   city: City
   country: Country
   streets: Street[]
   references: Reference[]
+  source?: DatasetSource
 }

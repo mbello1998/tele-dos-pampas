@@ -1,8 +1,10 @@
 import type { BBox } from '../../src/lib/geo/types'
-import { overpassQuery, type OverpassElement } from './overpass'
+import { overpassQueryWithMeta, type OverpassElement, type OverpassMeta } from './overpass'
 
 /** Fuel stations, schools, churches, hospitals/clinics, pharmacies, supermarkets, squares and bridges. */
-export async function fetchReferences(bbox: BBox): Promise<OverpassElement[]> {
+export async function fetchReferencesWithMeta(
+  bbox: BBox,
+): Promise<{ elements: OverpassElement[]; meta: OverpassMeta }> {
   const b = `(${bbox.south},${bbox.west},${bbox.north},${bbox.east})`
   const query =
     `[out:json][timeout:120];(` +
@@ -12,5 +14,9 @@ export async function fetchReferences(bbox: BBox): Promise<OverpassElement[]> {
     `nwr${b}["leisure"="park"]["name"~"Plaza|Praça"];` +
     `way${b}["bridge"]["name"~"Puente|Ponte"];` +
     `);out tags center;`
-  return overpassQuery<OverpassElement>(query)
+  return overpassQueryWithMeta<OverpassElement>(query)
+}
+
+export async function fetchReferences(bbox: BBox): Promise<OverpassElement[]> {
+  return (await fetchReferencesWithMeta(bbox)).elements
 }

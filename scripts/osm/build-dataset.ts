@@ -8,6 +8,7 @@ import { pointInPolygon, round5 } from '../../src/lib/geo/geometry'
 import { normalizeStreetName } from '../../src/lib/geo/normalize'
 import type {
   BBox,
+  DatasetSource,
   City,
   Country,
   Intersection,
@@ -17,8 +18,8 @@ import type {
   Street,
   StreetDataset,
 } from '../../src/lib/geo/types'
-import { fetchStreets } from './fetch-streets'
-import { fetchReferences } from './fetch-references'
+import { fetchReferencesWithMeta } from './fetch-references'
+import { fetchStreetsWithMeta } from './fetch-streets'
 import type { OverpassElement, OverpassWay } from './overpass'
 
 export const COUNTRY: Record<City, Country> = { quarai: 'BR', artigas: 'UY' }
@@ -43,6 +44,8 @@ export type BuildOptions = {
   boundaries?: Record<City, Polygon>
   /** Raw `out tags center` elements (amenity/shop/...) to turn into references. */
   references?: OverpassElement[]
+  /** Provenance recorded in the dataset (mirror + OSM base timestamp per query). */
+  source?: DatasetSource
 }
 
 function centroid(polygon: Polygon): LatLng {
@@ -94,6 +97,19 @@ function roundedSegment(way: OverpassWay): LatLng[] {
   return out
 }
 
+/** True when more than half of the vertices of these ways lie outside the polygon. */
+function mostlyOutside(group: OverpassWay[], boundary: Polygon): boolean {
+  let total = 0
+  let outside = 0
+  for (const w of group) {
+    for (const g of w.geometry ?? []) {
+      total++
+      if (!pointInPolygon({ lat: g.lat, lng: g.lon }, boundary)) outside++
+    }
+  }
+  return outside * 2 > total
+}
+
 const byLatLng = (a: LatLng, b: LatLng) => a.lat - b.lat || a.lng - b.lng
 
 export function buildDataset(
@@ -106,8 +122,8 @@ export function buildDataset(
 
   // Sorted by OSM id so output does not depend on the order Overpass answers in.
   // A way inside this city's polygon is ours. A way inside no polygon at all
-  // goes to the nearest city (<= 15 km) and is flagged outsideUrban.
-  const outside = new Set<number>()
+  // goes to the nearest city (<= 15 km). A street is flagged outsideUrban when most
+  // of its vertices lie outside this city's polygon.
   const named = [...ways]
     .filter((w) => {
       if ((w.tags?.name ?? '').trim().length === 0) return false
@@ -123,7 +139,6 @@ export function buildDataset(
         lng: geometry.reduce((s, g) => s + g.lon, 0) / geometry.length,
       }
       if (nearestCity(mid, boundaries) !== city) return false
-      outside.add(w.id)
       return true
     })
     .sort((a, b) => a.id - b.id)
@@ -183,7 +198,7 @@ export function buildDataset(
     city,
     country,
     segments: (groups.get(name) as OverpassWay[]).map(roundedSegment).filter((s) => s.length >= 2),
-    ...((groups.get(name) as OverpassWay[]).every((w) => outside.has(w.id)) ? { outsideUrban: true } : {}),
+    ...(mostlyOutside(groups.get(name) as OverpassWay[], boundary) ? { outsideUrban: true } : {}),
     intersections: [...(intersectionsByName.get(name)?.values() ?? [])].sort(
       (a, b) => a.streetName.localeCompare(b.streetName) || byLatLng(a.at, b.at),
     ),
@@ -194,6 +209,7 @@ export function buildDataset(
     country,
     streets: streets.filter((s) => s.segments.length > 0),
     references: buildReferences(options.references ?? [], boundary, city, options.boundaries),
+    ...(options.source ? { source: options.source } : {}),
   }
 }
 
@@ -249,8 +265,9 @@ async function main() {
   const outDir = join(here, '..', '..', 'public', 'data')
   mkdirSync(outDir, { recursive: true })
 
-  const ways = await fetchStreets(BBOX)
-  const references = await fetchReferences(BBOX)
+  const { ways, meta: streetsMeta } = await fetchStreetsWithMeta(BBOX)
+  const { elements: references, meta: referencesMeta } = await fetchReferencesWithMeta(BBOX)
+  const source: DatasetSource = { streets: streetsMeta, references: referencesMeta }
   console.log(`fetched ${ways.length} ways, ${references.length} reference elements`)
   const boundaries = Object.fromEntries(
     (Object.keys(COUNTRY) as City[]).map((c) => [
@@ -260,7 +277,7 @@ async function main() {
   ) as Record<City, Polygon>
 
   for (const city of Object.keys(COUNTRY) as City[]) {
-    const dataset = buildDataset(ways, boundaries[city], city, { boundaries, references })
+    const dataset = buildDataset(ways, boundaries[city], city, { boundaries, references, source })
     const out = join(outDir, `${city}.json`)
     writeFileSync(out, JSON.stringify(dataset))
     const bytes = Buffer.byteLength(JSON.stringify(dataset))

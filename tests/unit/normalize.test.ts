@@ -22,6 +22,14 @@ describe('normalizeStreetName', () => {
     ['Pasaje Sarandí', 'sarandi'],
     ['Av. Brasil', 'brasil'],
     ['av Brasil', 'brasil'],
+    ['Rodovia João Simões Lopes Neto', 'joao simoes lopes neto'],
+    ['Ruta 30', '30'],
+    ['Praça Dom Pedro', 'dom pedro'],
+    ['Plaza Independencia', 'independencia'],
+    ['Alameda Santos', 'santos'],
+    ['Bulevar Artigas', 'artigas'],
+    ['Largo da Matriz', 'da matriz'],
+    ['Rotonda Coronel Carlos Lecueder', 'coronel carlos lecueder'],
   ])('strips leading type word: %s', (input, expected) => {
     expect(normalizeStreetName(input)).toBe(expected)
   })

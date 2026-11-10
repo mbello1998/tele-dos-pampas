@@ -8,6 +8,14 @@ const STREET_TYPES = [
   'calle',
   'camino',
   'pasaje',
+  'rodovia',
+  'ruta',
+  'praca',
+  'plaza',
+  'alameda',
+  'bulevar',
+  'largo',
+  'rotonda',
 ]
 
 const LEADING_TYPE = new RegExp(`^(?:${STREET_TYPES.join('|')})\\.?\\s+`)

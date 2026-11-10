@@ -34,9 +34,10 @@ test('classifica rua pelo polígono do município, não por latitude', () => {
   expect(a).toContain('Luis de Grossi')
   expect(q).not.toContain('Luis de Grossi')
 
-  // Ways inside neither municipality (Ruta 30, rural) are dropped.
+  // Without the `boundaries` option, ways inside neither municipality are dropped:
+  // only the 2 Ruta 30 ways that touch Artigas' polygon survive (of 4 in the sample).
   expect(q).not.toContain('Ruta 30')
-  expect(a).not.toContain('Ruta 30')
+  expect(byName(artigas().streets, 'Ruta 30')?.segments).toHaveLength(2)
 })
 
 test('todo registro carrega cidade e país coerentes', () => {
@@ -126,16 +127,23 @@ const references = (
   }
 ).elements
 
-test('via fora dos dois polígonos vai para a cidade mais próxima, com outsideUrban', () => {
-  // Ruta 30 (lat -30.427) lies in neither polygon, and is nearest to Artigas.
+test('via fora dos dois polígonos vai para a cidade mais próxima', () => {
   const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries })
   const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries })
   expect(q.streets.map((s) => s.name)).not.toContain('Ruta 30')
   const ruta = byName(a.streets, 'Ruta 30')
-  expect(ruta?.outsideUrban).toBe(true)
+  expect(ruta?.segments).toHaveLength(4) // all four sample ways, 2 of them outside both polygons
   expect(ruta?.country).toBe('UY')
-  // Streets inside a polygon are not flagged.
+})
+
+test('outsideUrban: maioria dos vértices fora do polígono, mesmo com um trecho dentro', () => {
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries })
+  // Real Ruta 30: 4 sample ways, one fully and one half inside Artigas' polygon,
+  // but 148 of its 155 vertices outside it. An "all ways outside" rule misses it.
+  expect(byName(a.streets, 'Ruta 30')?.outsideUrban).toBe(true)
+  // Downtown streets are not flagged.
   expect(byName(a.streets, '18 de Julio')?.outsideUrban).toBeUndefined()
+  expect(byName(a.streets, 'Aparicio Saravia')?.outsideUrban).toBeUndefined()
 })
 
 test('via a mais de 15 km de ambas as cidades é descartada', () => {
@@ -154,23 +162,69 @@ test('via a mais de 15 km de ambas as cidades é descartada', () => {
   }
 })
 
-test('as duas cidades devolvem referências, cada uma com sua cidade', () => {
+const refIds = (d: { references: { id: string }[] }) => new Set(d.references.map((r) => r.id))
+
+test('referências: cada uma cai na cidade certa (dados reais conhecidos)', () => {
   const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries, references })
   const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
   expect(q.references.length).toBeGreaterThan(0)
   expect(a.references.length).toBeGreaterThan(0)
+
+  // Quarai-side references: present in Quarai, absent from Artigas.
+  const quaraiSide = ['quarai-ref-n9893342124', 'quarai-ref-n4735589623', 'quarai-ref-n5478809762']
+  for (const id of quaraiSide) {
+    expect(refIds(q)).toContain(id)
+    expect(refIds(a)).not.toContain(id.replace('quarai-', 'artigas-'))
+  }
+  expect(a.references.map((r) => r.name)).not.toContain('Igreja Matriz de Quaraí')
+  expect(a.references.map((r) => r.name)).not.toContain('Shell')
+  // Artigas-side references: the opposite.
+  expect(a.references.map((r) => r.name)).toContain('Hospital Departamental de Artigas')
+  expect(q.references.map((r) => r.name)).not.toContain('Hospital Departamental de Artigas')
+  expect(q.references.map((r) => r.name)).not.toContain('Plaza Artigas')
+
+  // The bridge exists on both banks.
+  expect(q.references.some((r) => r.kind === 'bridge')).toBe(true)
+  expect(a.references.some((r) => r.kind === 'bridge')).toBe(true)
+
+  // Total is partitioned: nothing duplicated across cities (84 elements, 1 has no name/brand).
+  expect(q.references.length + a.references.length).toBe(83)
   for (const r of q.references) expect(r.city).toBe('quarai')
   for (const r of a.references) expect(r.city).toBe('artigas')
-  // No reference appears in both cities.
-  const qIds = new Set(q.references.map((r) => r.id))
-  expect(a.references.some((r) => qIds.has(r.id))).toBe(false)
-  // Coordinates are rounded to 5 decimals and every entry has a kind.
-  for (const r of [...q.references, ...a.references]) {
-    expect(Math.round(r.at.lat * 1e5) / 1e5).toBe(r.at.lat)
-    expect(r.kind.length).toBeGreaterThan(0)
+})
+
+test('referências fora dos dois polígonos vão para a cidade mais próxima; sem boundaries são descartadas', () => {
+  const outsideBoth = ['n3799501035', 'n11432012837', 'n11432012838', 'w376971201']
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
+  const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries, references })
+  for (const id of outsideBoth) {
+    expect(refIds(a)).toContain('artigas-ref-' + id)
+    expect(refIds(q)).not.toContain('quarai-ref-' + id)
   }
+  const plain = buildDataset(ways, boundaries.artigas, 'artigas', { references })
+  for (const id of outsideBoth) expect(refIds(plain)).not.toContain('artigas-ref-' + id)
+  expect(plain.references.length).toBe(a.references.length - outsideBoth.length)
+})
+
+test('referências: kind clinic e demais tipos aparecem, coordenadas com 5 casas', () => {
+  const q = buildDataset(ways, boundaries.quarai, 'quarai', { boundaries, references })
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
+  expect(q.references.find((r) => r.kind === 'clinic')?.name).toBe('ESF PROFLURB')
   const kinds = new Set([...q.references, ...a.references].map((r) => r.kind))
-  for (const k of ['fuel', 'school', 'church', 'hospital', 'pharmacy', 'supermarket', 'plaza', 'bridge']) {
+  for (const k of ['fuel', 'school', 'church', 'hospital', 'clinic', 'pharmacy', 'supermarket', 'plaza', 'bridge']) {
     expect(kinds).toContain(k)
   }
+  for (const r of [...q.references, ...a.references]) {
+    expect(Math.round(r.at.lat * 1e5) / 1e5).toBe(r.at.lat)
+    expect(Math.round(r.at.lng * 1e5) / 1e5).toBe(r.at.lng)
+  }
+})
+
+test('a proveniência informada é gravada no dataset', () => {
+  const source = {
+    streets: { mirror: 'https://m.test/x', osmBaseTimestamp: '2026-11-09T00:00:00Z' },
+    references: { mirror: 'https://m.test/x', osmBaseTimestamp: null },
+  }
+  expect(buildDataset(ways, boundaries.artigas, 'artigas', { source }).source).toEqual(source)
+  expect(artigas().source).toBeUndefined()
 })
