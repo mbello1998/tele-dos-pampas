@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { connect } from '../../scripts/db/client'
@@ -753,7 +755,7 @@ describe('políticas RLS', () => {
       expect(await snap()).toBe(before)
       // o admin escreve (transação revertida no fim)
       await actAs(db, admin)
-      const up = await attempt(db, `update pricing_rules set night_surcharge_brl = 4 where city = 'quarai' and kind = 'food' and valid_to is null`)
+      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'food' and valid_to is null`)
       expect(up.ok && up.rowCount).toBe(1)
       expect((await attempt(db, `insert into fx_rates (rate, source, valid_for_date) values (7.9, 'manual', '2030-01-02')`)).ok).toBe(true)
     })
@@ -778,6 +780,84 @@ describe('políticas RLS', () => {
       // o que o admin pode: acrescentar uma linha, inclusive um override manual no mesmo dia
       await actAs(db, admin)
       expect((await attempt(db, `insert into fx_rates (rate, source, is_manual_override, valid_for_date) values (8.0, 'manual', true, '2030-01-01')`)).ok).toBe(true)
+    })
+
+    test('pricing_rules: fechar uma versão (valid_to sozinho) é permitido ao admin e a nova versão é uma linha nova', async () => {
+      await actAs(db, admin)
+      const close = await attempt(db, `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'food' and valid_to is null`)
+      expect(close.ok && close.rowCount).toBe(1)
+      expect((await attempt(db, `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from)
+        values ('quarai', 'food', 11, 2, 2.5, 10, current_date + 10)`)).ok).toBe(true)
+      // quem não é admin não fecha versão nenhuma (sem policy de update): zero linhas
+      for (const w of [clientA, merchant1, fleet1, courierQ1]) {
+        await actAs(db, w)
+        expectRefused(await attempt(db, `update pricing_rules set valid_to = current_date + 5 where city = 'artigas' and kind = 'food' and valid_to is null`), JSON.stringify(w))
+      }
+      expect((await asOwner<{ n: number }>(db, `select count(*)::int n from pricing_rules where city = 'artigas' and kind = 'food' and valid_to is null`))[0].n).toBe(1)
+    })
+
+    test('pricing_rules: qualquer outra coluna é recusada, até para o admin; valid_to junto com outra coluna também', async () => {
+      const snap = async () => (await asOwner<{ h: string }>(db, `select md5(string_agg(p::text, '|' order by p.id)) h from pricing_rules p`))[0].h
+      const before = await snap()
+      const open = `where city = 'quarai' and kind = 'food' and valid_to is null`
+      await actAs(db, admin)
+      for (const set of [
+        'base_fare_brl = 99', 'per_km_brl = 99', "city = 'artigas'", "kind = 'ride'", 'min_fare_brl = 1', 'included_km = 9', 'night_surcharge_brl = 0',
+        'cross_border_fee_brl = 0', 'service_fee_pct = 50', "valid_from = '2025-01-01'", `created_by = '${ID.admin}'`,
+        // a close that carries a price change along is a price change
+        'valid_to = current_date + 10, base_fare_brl = 99', 'valid_to = current_date + 10, per_km_brl = 0.01', "valid_to = current_date + 10, city = 'artigas'",
+      ]) {
+        expectForbidden(await attempt(db, `update pricing_rules set ${set} ${open}`), set)
+      }
+      expect(await snap()).toBe(before)
+      // o dono do banco e o service_role também (o gatilho não depende de papel)
+      await actAs(db, 'postgres')
+      expectForbidden(await attempt(db, `update pricing_rules set base_fare_brl = 99 ${open}`), 'dono do banco')
+      await db.query('set local role service_role')
+      expectForbidden(await attempt(db, `update pricing_rules set base_fare_brl = 99 ${open}`), 'service_role')
+      expect(await snap()).toBe(before)
+      // um UPDATE que não muda nada passa (sem edição, nada a proteger)
+      await actAs(db, admin)
+      const noop = await attempt(db, `update pricing_rules set base_fare_brl = base_fare_brl ${open}`)
+      expect(noop.ok && noop.rowCount).toBe(1)
+    })
+
+    test('pricing_rules: DELETE recusado para todos os papéis, inclusive admin, dono do banco e service_role', async () => {
+      const snap = async () => (await asOwner<{ h: string }>(db, `select md5(string_agg(p::text, '|' order by p.id)) h from pricing_rules p`))[0].h
+      const before = await snap()
+      const dels = (await asOwner<{ cmd: string }>(db, `select cmd from pg_policies where schemaname = 'public' and tablename = 'pricing_rules'`)).map((p) => p.cmd)
+      expect(dels).not.toContain('DELETE')
+      for (const [name, w] of [...writers, ['admin', admin] as [string, Who]]) {
+        await actAs(db, w)
+        const a = await attempt(db, `delete from pricing_rules`)
+        if (name === 'admin') expectForbidden(a, name) // privilégio revogado
+        else expectRefused(a, name)
+      }
+      // segunda parede: com o privilégio devolvido e a policy recriada por engano, o gatilho ainda recusa
+      await asOwner(db, 'grant delete on public.pricing_rules to authenticated')
+      await asOwner(db, `create policy tmp_oops_del on public.pricing_rules for delete to authenticated using (true)`)
+      await actAs(db, admin)
+      expectForbidden(await attempt(db, `delete from pricing_rules`), 'admin com policy frouxa')
+      await actAs(db, 'postgres')
+      expectForbidden(await attempt(db, `delete from pricing_rules`), 'dono do banco')
+      await db.query('set local role service_role')
+      expectForbidden(await attempt(db, `delete from pricing_rules`), 'service_role')
+      expect(await snap()).toBe(before)
+      expect((await asOwner<{ n: number }>(db, `select count(*)::int n from pricing_rules where valid_to is null`))[0].n).toBeGreaterThanOrEqual(6)
+    })
+
+    test('o seed idempotente continua rodando com o gatilho (insert ... where not exists não é bloqueado nem duplica)', async () => {
+      const seed = readFileSync(resolve(process.cwd(), 'supabase/seed.sql'), 'utf8')
+      const count = async () => (await asOwner<{ n: number }>(db, `select count(*)::int n from pricing_rules`))[0].n
+      const before = await count()
+      await actAs(db, 'postgres')
+      await db.query(seed)
+      await db.query(seed)
+      expect(await count()).toBe(before)
+      // e uma versão nova inserida depois que a antiga foi fechada também passa pelo gatilho
+      await asOwner(db, `update pricing_rules set valid_to = current_date + 10 where city = 'artigas' and kind = 'ride' and valid_to is null`)
+      await asOwner(db, `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from) values ('artigas', 'ride', 11, 2, 2.5, 10, current_date + 10)`)
+      expect(await count()).toBe(before + 1)
     })
 
     test('zonas e transições: autenticado lê, só admin escreve', async () => {
@@ -844,16 +924,25 @@ describe('políticas RLS', () => {
   describe('auditoria', () => {
     test('escrita de admin em pricing_rules grava audit_log com before e after', async () => {
       await actAs(db, admin)
-      const up = await attempt(db, `update pricing_rules set night_surcharge_brl = 4.00 where city = 'quarai' and kind = 'food' and valid_to is null returning id`)
+      // a única edição possível: fechar a versão vigente
+      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'food' and valid_to is null returning id`)
       expect(up.ok && up.rowCount).toBe(1)
       const id = ((up as unknown) as { rows: { id: string }[] }).rows[0].id
-      const log = await asOwner<{ actor_id: string; actor_role: string; action: string; record_id: string; before: Record<string, string>; after: Record<string, string> }>(
-        db, `select * from audit_log where table_name = 'pricing_rules' and record_id = $1`, [id])
-      expect(log).toHaveLength(1)
-      expect(log[0]).toMatchObject({ actor_id: ID.admin, actor_role: 'admin', action: 'UPDATE', record_id: id })
-      expect(Number(log[0].before.night_surcharge_brl)).toBe(3)
-      expect(Number(log[0].after.night_surcharge_brl)).toBe(4)
-      expect(log[0].before.id).toBe(id)
+      // e a nova versão é uma linha nova, que também é auditada
+      const ins = await attempt(db, `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from)
+         values ('quarai', 'food', 12, 2, 3, 12, current_date + 30) returning id`)
+      expect(ins.ok).toBe(true)
+      const newId = ((ins as unknown) as { rows: { id: string }[] }).rows[0].id
+      const log = await asOwner<{ actor_id: string; actor_role: string; action: string; record_id: string; before: Record<string, string | null> | null; after: Record<string, string | null> | null }>(
+        db, `select * from audit_log where table_name = 'pricing_rules' and record_id = any($1::text[]) order by id`, [[id, newId]])
+      expect(log.map((l) => l.action)).toEqual(['UPDATE', 'INSERT'])
+      expect(log[0]).toMatchObject({ actor_id: ID.admin, actor_role: 'admin', record_id: id })
+      expect(log[0].before!.valid_to).toBeNull()
+      expect(log[0].after!.valid_to).toBeTruthy()
+      expect(Number(log[0].before!.base_fare_brl)).toBe(Number(log[0].after!.base_fare_brl))
+      expect(log[0].before!.id).toBe(id)
+      expect(log[1]).toMatchObject({ actor_id: ID.admin, actor_role: 'admin', record_id: newId, before: null })
+      expect(Number(log[1].after!.base_fare_brl)).toBe(12)
       // o admin consegue ler a própria trilha
       await actAs(db, admin)
       expect((await db.query(`select count(*)::int n from audit_log where table_name = 'pricing_rules'`)).rows[0].n).toBeGreaterThan(0)
