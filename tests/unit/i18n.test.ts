@@ -93,6 +93,8 @@ describe('detectLocale(Accept-Language)', () => {
     ['en-US,es;q=0.5,pt;q=0.4', 'es-UY', 'vence o maior q, não o primeiro'],
     ['pt;q=0.4,es;q=0.9', 'es-UY', 'a ordem é pelo q, não pela posição'],
     ['es;q=0, pt', 'pt-BR', 'q=0 significa inaceitável'],
+    ['es;q=0', 'pt-BR', 'q=0 sozinho: nada aceitável, padrão'],
+    ['en,es;q=0', 'pt-BR', 'q=0 com idioma não suportado: padrão'],
     ['en-US,fr', 'pt-BR', 'nenhum idioma suportado: padrão'],
     ['%%%;;q=x, ;q=1', 'pt-BR', 'lixo não quebra'],
     ['ES-uy', 'es-UY', 'sem diferença de caixa'],

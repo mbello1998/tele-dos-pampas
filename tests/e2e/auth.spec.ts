@@ -21,6 +21,8 @@ test.describe('sem conta', () => {
     for (const [path, expected] of [
       ['/admin', '/entrar?next=%2Fadmin'],
       ['/admin/despacho', '/entrar?next=%2Fadmin%2Fdespacho'],
+      // sem página alguma: só o middleware pode redirecionar (sem ele seria um 404)
+      ['/admin/nao-existe', '/entrar?next=%2Fadmin%2Fnao-existe'],
       ['/perfil', '/entrar?next=%2Fperfil'],
       ['/onboarding', '/entrar?next=%2Fonboarding'],
       ['/aguardando', '/entrar'],
@@ -33,7 +35,7 @@ test.describe('sem conta', () => {
   test('código errado mostra o erro e continua na tela', async ({ page }) => {
     const u = await user('wrongcode')
     await signInViaUi(page, u, { code: '00000000' })
-    await expect(page.getByRole('alert')).toContainText('Código incorreto ou vencido')
+    await expect(page.locator('p[role="alert"]')).toContainText('Código incorreto ou vencido')
     await expect(page).toHaveURL(/\/entrar/)
     // nenhuma sessão nasceu
     await page.goto('/perfil')
@@ -44,7 +46,7 @@ test.describe('sem conta', () => {
     await page.goto('/entrar')
     await page.getByLabel('E-mail').fill('isto-nao-e-email')
     await page.getByRole('button', { name: 'Enviar código' }).click()
-    await expect(page.getByRole('alert')).toContainText('Confira o e-mail digitado')
+    await expect(page.locator('p[role="alert"]')).toContainText('Confira o e-mail digitado')
   })
 })
 
@@ -77,8 +79,12 @@ test.describe('idioma', () => {
   })
 
   test.describe('navegador em inglês com espanhol como segunda opção', () => {
-    test.use({ locale: 'en-US', extraHTTPHeaders: { 'Accept-Language': 'en-US,es;q=0.5,pt;q=0.4' } })
+    test.use({ locale: 'en-US' })
     test('vence o maior q entre os idiomas que o app tem', async ({ page }) => {
+      // o Chromium impõe o próprio Accept-Language ao `locale`; só a interceptação entrega a lista composta
+      await page.route('**/entrar', (route) =>
+        route.continue({ headers: { ...route.request().headers(), 'accept-language': 'en-US,es;q=0.5,pt;q=0.4' } }),
+      )
       await page.goto('/entrar')
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ingresar')
     })
@@ -99,7 +105,7 @@ test.describe('cadastro, onboarding e perfil (cliente)', () => {
     await page.getByLabel('Nome', { exact: true }).fill('  Ana Souza  ')
     // sem cidade o onboarding não conclui
     await page.getByRole('button', { name: 'Continuar' }).click()
-    await expect(page.getByRole('alert')).toContainText('Confira os campos')
+    await expect(page.locator('p[role="alert"]')).toContainText('Confira os campos')
 
     // escolher Artigas sugere pesos (a pessoa ainda não mexeu na moeda)
     await page.getByLabel('Cidade').selectOption('artigas')
@@ -147,6 +153,8 @@ test.describe('cadastro, onboarding e perfil (cliente)', () => {
     await page.goto('/admin')
     await expect(page).toHaveURL(/\/$/)
     await page.goto('/admin/despacho')
+    await expect(page).toHaveURL(/\/$/)
+    await page.goto('/admin/nao-existe') // só o middleware pode barrar uma rota sem página
     await expect(page).toHaveURL(/\/$/)
 
     // quem já entrou não vê o formulário de entrada
