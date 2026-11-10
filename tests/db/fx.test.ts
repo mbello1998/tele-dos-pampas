@@ -64,10 +64,9 @@ describe('getEffectiveRate', () => {
   })
 
   test('override manual tem precedência sobre a taxa da API na mesma data', async () => {
-    await insertRate('7.900000', '2026-11-09', { source: 'fxfeed' })
+    // manual gravada ANTES da API: prova que a precedência não é "a última vence"
     await insertRate('8.100000', '2026-11-09', { source: 'manual', manual: true, spread: '3' })
-    // inserida depois, para provar que a precedência não é "a última vence"
-    await insertRate('7.950000', '2026-11-09', { source: 'fxfeed' })
+    await insertRate('7.900000', '2026-11-09', { source: 'fxfeed' })
     const r = await getEffectiveRate(D, db)
     expect(r).toMatchObject({ rate: 8.1, spreadPct: 3, isStale: false })
   })
@@ -100,6 +99,26 @@ describe('updateFx', () => {
     expect(res.status).toBe('skipped-existing')
     const after = await db.query('select * from public.fx_rates')
     expect(after.rows).toEqual(before.rows)
+  })
+
+  test('mesma data duas vezes deixa exatamente uma linha da API (constraint + on conflict)', async () => {
+    await insertRate('7.900000', '2026-11-09')
+    await expect(
+      db.query('savepoint s').then(() => insertRate('8.000000', '2026-11-09')),
+    ).rejects.toThrow(/fx_rates_pair_date_kind_key/)
+    await db.query('rollback to savepoint s')
+    const res = await updateFx({ db, fetchFn: ok(9.99), apiKey: 'k', today: D, log })
+    expect(res.status).toBe('skipped-existing')
+    const { rows } = await db.query('select count(*)::int n from public.fx_rates')
+    expect(rows[0].n).toBe(1)
+  })
+
+  test('execução duplicada do cron é no-op: segunda chamada não cria nem altera linha', async () => {
+    await updateFx({ db, fetchFn: ok(7.83), apiKey: 'k', today: D, log })
+    const first = await db.query('select * from public.fx_rates')
+    const again = await updateFx({ db, fetchFn: ok(8.5), apiKey: 'k', today: D, log })
+    expect(again.status).toBe('skipped-existing')
+    expect((await db.query('select * from public.fx_rates')).rows).toEqual(first.rows)
   })
 
   test('API fora do ar mantém a última taxa gravada e marca isStale', async () => {

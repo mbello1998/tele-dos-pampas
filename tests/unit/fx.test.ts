@@ -57,6 +57,36 @@ describe('update-fx com API fora do ar', () => {
     }
   })
 
+  test('HTTP 200 com JSON sem rates.UYU: loga o corpo truncado e não escreve', async () => {
+    const db = fakeDb()
+    const log = vi.fn()
+    const body = JSON.stringify({ success: true, rates: { EUR: 0.1 }, pad: 'x'.repeat(1000) })
+    const result = await updateFx({ db, fetchFn: vi.fn().mockResolvedValue(new Response(body, { status: 200 })), apiKey: 'k', today: TODAY, log })
+    expect(result.status).toBe('api-failed')
+    expect(db.calls).toEqual([])
+    const logged = log.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(logged).toContain('EUR')
+    expect(logged.length).toBeLessThan(700)
+  })
+
+  test('HTTP 200 com corpo que não é JSON: loga e não escreve', async () => {
+    const db = fakeDb()
+    const log = vi.fn()
+    const result = await updateFx({ db, fetchFn: vi.fn().mockResolvedValue(new Response('<html>manutenção</html>', { status: 200 })), apiKey: 'k', today: TODAY, log })
+    expect(result.status).toBe('api-failed')
+    expect(db.calls).toEqual([])
+    expect(log.mock.calls.map((c) => String(c[0])).join('\n')).toContain('manutenção')
+  })
+
+  test('rates.UYU como string, success false ou NaN também não escrevem', async () => {
+    for (const body of [{ rates: { UYU: '7.8' } }, { success: false, rates: { UYU: 7.8 } }, { rates: { UYU: null } }]) {
+      const db = fakeDb()
+      const result = await updateFx({ db, fetchFn: vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })), apiKey: 'k', today: TODAY, log: vi.fn() })
+      expect(result.status).toBe('api-failed')
+      expect(db.calls).toEqual([])
+    }
+  })
+
   test('a chave nunca aparece nos logs', async () => {
     const log = vi.fn()
     const fetchFn = vi.fn().mockRejectedValue(new Error('falhou https://x?api_key=SEGREDO123'))
