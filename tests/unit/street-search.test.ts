@@ -98,7 +98,6 @@ describe('searchStreets', () => {
     expect(searchStreets('   ', both)).toEqual([])
   })
 
-
   test('respeita o limite', () => {
     expect(searchStreets('r', both, 2).length).toBeLessThanOrEqual(2)
     expect(searchStreets('a', both, 3).length).toBeLessThanOrEqual(3)
@@ -120,6 +119,53 @@ describe('searchStreets', () => {
     }
     const julio = searchStreets('18 de julio', both)
     expect(julio[0]).toMatchObject({ name: '18 de Julio', city: 'artigas', country: 'UY' })
+  })
+
+  test('escores de cada faixa: exato 110, prefixo 100, início de palavra 80, trecho 60, fuzzy abaixo', () => {
+    const d = dataset('quarai', 'BR', ['Rua Bento Gonçalves', 'Rua Gonçalves Dias'])
+    const score = (q: string, name: string) => searchStreets(q, [d]).find((h) => h.name === name)?.score
+    expect(score('gonçalves dias', 'Rua Gonçalves Dias')).toBe(110)
+    expect(score('bento', 'Rua Bento Gonçalves')).toBe(100)
+    expect(score('goncalves', 'Rua Bento Gonçalves')).toBe(80)
+    expect(score('ento', 'Rua Bento Gonçalves')).toBe(60)
+    expect(score('gonzalves', 'Rua Bento Gonçalves')).toBe(30)
+    expect(score('bnto', 'Rua Bento Gonçalves')).toBe(35)
+  })
+
+  test('prefixo longo vence trecho curto pelo escore, não pelo tamanho do nome', () => {
+    const d = dataset('quarai', 'BR', ['Rua Gonçalves Ledo da Silva Pereira', 'Rua B Gonçalves'])
+    const hits = searchStreets('goncalves', [d])
+    expect(hits.map((h) => [h.name, h.score])).toEqual([
+      ['Rua Gonçalves Ledo da Silva Pereira', 100],
+      ['Rua B Gonçalves', 80],
+    ])
+  })
+
+  test('erro de digitação fica estritamente abaixo de um trecho real', () => {
+    const d = dataset('quarai', 'BR', ['Rua Bento Gonçalves', 'Rua Sete de Setembro'])
+    const typo = searchStreets('setenbro', [d])[0]
+    const substring = searchStreets('embro', [d])[0]
+    expect(typo.name).toBe('Rua Sete de Setembro')
+    expect(substring.score).toBe(60)
+    expect(typo.score).toBeLessThan(substring.score)
+  })
+
+  test('limite zero ou negativo retorna lista vazia', () => {
+    expect(searchStreets('bento', both, 0)).toEqual([])
+    expect(searchStreets('bento', both, -1)).toEqual([])
+  })
+
+  test('query de 2 letras não faz fuzzy: "ab" não acha "ob"', () => {
+    const d = dataset('quarai', 'BR', ['Rua Ob'])
+    expect(searchStreets('ab', [d])).toEqual([])
+  })
+
+  test('pontuação no fim da query é ignorada: "bento." vale o mesmo que "bento"', () => {
+    const plain = searchStreets('bento', both)[0]
+    expect(plain.score).toBe(100)
+    for (const q of ['bento.', 'bento,', 'bento. ', 'bento;']) {
+      expect(searchStreets(q, both)[0]).toMatchObject({ name: plain.name, score: 100 })
+    }
   })
 
   test('não altera os datasets recebidos', () => {

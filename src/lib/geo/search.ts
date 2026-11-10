@@ -5,6 +5,9 @@ export type StreetHit = Street & { score: number }
 
 const DEFAULT_LIMIT = 8
 
+/** A phone keyboard often leaves a trailing period or comma; it is never part of a street name. */
+const TRAILING_PUNCTUATION = /[\s.,;:!?]+$/
+
 // Scores: tiers are far apart so a better tier always beats a worse one.
 const SCORE_EXACT = 110
 const SCORE_PREFIX = 100
@@ -91,7 +94,7 @@ type Candidate = { street: Street; score: number }
  * its `city` and `country`, since the same name can exist on both sides.
  */
 export function searchStreets(query: string, datasets: StreetDataset[], limit: number = DEFAULT_LIMIT): StreetHit[] {
-  const q = normalizeStreetName(query)
+  const q = normalizeStreetName(query.replace(TRAILING_PUNCTUATION, ''))
   if (q.length === 0 || limit <= 0) return []
   const edits = maxEdits(q.length)
 
