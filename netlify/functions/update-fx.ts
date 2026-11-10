@@ -7,7 +7,7 @@ export type UpdateFxStatus = 'inserted' | 'skipped-existing' | 'no-key' | 'api-f
 
 export interface UpdateFxOptions {
   db: Queryable
-  fetchFn: (url: string) => Promise<Response>
+  fetchFn: (url: string, init?: { signal: AbortSignal }) => Promise<Response>
   apiKey: string | undefined
   today: Date
   log: (message: string) => void
@@ -18,6 +18,7 @@ const FXFEED_URL = 'https://api.fxfeed.io/v2/latest?base=BRL&currencies=UYU'
 class FxFeedError extends Error {}
 
 const RAW_LOG_LIMIT = 300
+export const FETCH_TIMEOUT_MS = 5000
 
 /**
  * FXFeed, confirmado em https://fxfeed.io/docs: GET /v2/latest com `base`, `currencies` (lista
@@ -27,12 +28,20 @@ const RAW_LOG_LIMIT = 300
  * Não confiamos nem no HTTP 200: o corpo é validado e, se estiver fora do formato, nada é gravado.
  */
 async function fetchRate(fetchFn: UpdateFxOptions['fetchFn'], apiKey: string, log: UpdateFxOptions['log']): Promise<number> {
-  const res = await fetchFn(`${FXFEED_URL}&api_key=${encodeURIComponent(apiKey)}`)
-  if (!res.ok) throw new FxFeedError(`FXFeed respondeu HTTP ${res.status}`)
-  const raw = await res.text()
+  // Mesmo padrão de src/lib/geo/osrm.ts: AbortController com teto; cobre também a leitura do corpo.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  let raw: string
+  try {
+    const res = await fetchFn(`${FXFEED_URL}&api_key=${encodeURIComponent(apiKey)}`, { signal: controller.signal })
+    if (!res.ok) throw new FxFeedError(`FXFeed respondeu HTTP ${res.status}`)
+    raw = await res.text()
+  } finally {
+    clearTimeout(timer)
+  }
   const logRaw = (why: string): FxFeedError => {
     // Corpo bruto truncado ajuda a diagnosticar; a chave é removida caso o provedor a ecoe.
-    const shown = raw.split(apiKey).join('***').slice(0, RAW_LOG_LIMIT)
+    const shown = raw.split(apiKey).join('***').split(encodeURIComponent(apiKey)).join('***').slice(0, RAW_LOG_LIMIT)
     log(`[update-fx] ${why}. Corpo recebido (truncado): ${shown}`)
     return new FxFeedError(`FXFeed: ${why}`)
   }
@@ -73,6 +82,8 @@ export async function updateFx({ db, fetchFn, apiKey, today, log }: UpdateFxOpti
 
   const day = toValidForDate(today)
   // Spread é decisão de negócio, não da API: herda o da linha mais recente (0 se não houver).
+  // Essa linha pode ser um override manual: o spread dele passa adiante para as linhas seguintes da
+  // API até alguém alterá-lo.
   // `on conflict do nothing` (constraint da migração 0015) torna a repetição um no-op, mesmo concorrente.
   const { rows } = await db.query(
     `insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date)

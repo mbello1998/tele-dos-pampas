@@ -1,7 +1,7 @@
 import type { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { connect } from '../../scripts/db/client'
-import { getEffectiveRate } from '../../src/lib/fx/rate'
+import { DB_TIMEOUT_MS, getEffectiveRate } from '../../src/lib/fx/rate'
 import { updateFx } from '../../netlify/functions/update-fx'
 
 let db: Client
@@ -64,12 +64,29 @@ describe('getEffectiveRate', () => {
   })
 
   test('override manual tem precedência sobre a taxa da API na mesma data', async () => {
-    // manual gravada ANTES da API: prova que a precedência não é "a última vence"
-    await insertRate('8.100000', '2026-11-09', { source: 'manual', manual: true, spread: '3' })
-    await insertRate('7.900000', '2026-11-09', { source: 'fxfeed' })
+    // A linha da API é MAIS NOVA em fetched_at e tem id maior: sem a preferência por is_manual_override,
+    // ela venceria por qualquer critério de desempate. Só a flag faz o manual ganhar.
+    await db.query(
+      `insert into public.fx_rates (id, rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
+       values ('00000000-0000-0000-0000-000000000001', 8.1, 'manual', 3, true, '2026-11-09', '2026-11-09T08:00:00Z'),
+              ('ffffffff-ffff-ffff-ffff-ffffffffffff', 7.9, 'fxfeed', 5, false, '2026-11-09', '2026-11-09T09:00:00Z')`,
+    )
     const r = await getEffectiveRate(D, db)
     expect(r).toMatchObject({ rate: 8.1, spreadPct: 3, isStale: false })
   })
+
+  test('banco que não responde (host inalcançável) cai no fallback dentro do timeout, sem pendurar', async () => {
+    const saved = process.env.SUPABASE_DB_URL
+    process.env.SUPABASE_DB_URL = 'postgresql://u:p@10.255.255.1:5432/postgres' // endereço sem rota
+    const t0 = Date.now()
+    try {
+      const r = await getEffectiveRate(D)
+      expect(r).toMatchObject({ rate: 7.8, isStale: true })
+    } finally {
+      process.env.SUPABASE_DB_URL = saved
+    }
+    expect(Date.now() - t0).toBeLessThan(DB_TIMEOUT_MS + 2000)
+  }, 15000)
 
   test('banco inacessível: não lança, devolve 7.80 stale', async () => {
     const broken = { query: () => Promise.reject(new Error('db down')) }

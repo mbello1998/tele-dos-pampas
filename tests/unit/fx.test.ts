@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { updateFx, type Queryable } from '../../netlify/functions/update-fx'
+import { FETCH_TIMEOUT_MS, updateFx, type Queryable } from '../../netlify/functions/update-fx'
 
 // Banco falso: toda consulta é registrada. Os testes de "sem escrita" exigem lista vazia.
 function fakeDb(): Queryable & { calls: string[] } {
@@ -84,6 +84,34 @@ describe('update-fx com API fora do ar', () => {
       const result = await updateFx({ db, fetchFn: vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })), apiKey: 'k', today: TODAY, log: vi.fn() })
       expect(result.status).toBe('api-failed')
       expect(db.calls).toEqual([])
+    }
+  })
+
+  test('chave ecoada no corpo bruto sai mascarada nas duas formas (crua e URL-encoded)', async () => {
+    const key = 'a+b/c=d&e'
+    const body = `erro: chave ${key} invalida; url ?api_key=${encodeURIComponent(key)}`
+    const log = vi.fn()
+    const result = await updateFx({ db: fakeDb(), fetchFn: vi.fn().mockResolvedValue(new Response(body, { status: 200 })), apiKey: key, today: TODAY, log })
+    expect(result.status).toBe('api-failed')
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged).toContain('***')
+    expect(logged).not.toContain(key)
+    expect(logged).not.toContain(encodeURIComponent(key))
+  })
+
+  test('fetch pendurado é abortado pelo timeout e termina sem escrever', async () => {
+    vi.useFakeTimers()
+    try {
+      const db = fakeDb()
+      const hang = vi.fn((_url: string, init?: { signal: AbortSignal }) =>
+        new Promise<Response>((_, reject) => init?.signal.addEventListener('abort', () => reject(new Error('aborted')))),
+      )
+      const p = updateFx({ db, fetchFn: hang, apiKey: 'k', today: TODAY, log: vi.fn() })
+      await vi.advanceTimersByTimeAsync(FETCH_TIMEOUT_MS + 100)
+      expect((await p).status).toBe('api-failed')
+      expect(db.calls).toEqual([])
+    } finally {
+      vi.useRealTimers()
     }
   })
 

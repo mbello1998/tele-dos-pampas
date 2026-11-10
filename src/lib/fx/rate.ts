@@ -13,6 +13,9 @@ export interface EffectiveRate {
 
 export const DEFAULT_FALLBACK_RATE = 7.8
 
+// Um banco que não responde bloqueia o pedido tanto quanto um que falha: corta rápido e cai no fallback.
+export const DB_TIMEOUT_MS = 3000
+
 // As duas cidades ficam no mesmo fuso; "hoje" é a data local delas, não a do servidor (UTC).
 const TIME_ZONE = 'America/Montevideo'
 
@@ -26,7 +29,8 @@ export function toValidForDate(date: Date): string {
   }).format(date)
 }
 
-// Override manual vence a API na mesma data; entre iguais, a linha gravada por último.
+// Override manual vence a API na mesma data (is_manual_override desc vem primeiro, de propósito);
+// entre linhas do mesmo tipo, a gravada por último.
 const ORDER_WITHIN_DATE = 'is_manual_override desc, fetched_at desc, id'
 const COLUMNS = 'rate::text as rate, spread_pct::text as spread_pct, valid_for_date::text as valid_for_date'
 
@@ -74,7 +78,7 @@ async function lookup(db: Queryable, date: Date): Promise<EffectiveRate> {
 export async function getEffectiveRate(date: Date = new Date(), db?: Queryable): Promise<EffectiveRate> {
   try {
     if (db) return await lookup(db, date)
-    const client = await connect()
+    const client = await connect({ connectionTimeoutMillis: DB_TIMEOUT_MS, queryTimeoutMillis: DB_TIMEOUT_MS })
     try {
       return await lookup(client, date)
     } finally {
