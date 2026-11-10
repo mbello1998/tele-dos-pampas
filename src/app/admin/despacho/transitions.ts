@@ -79,3 +79,33 @@ export function legalTargets(rows: TransitionRow[], order: OrderLike, role: User
 
 /** Whether the console offers "assign courier": mirrors assign_courier(), which refuses a closed order. */
 export const canAssignCourier = (status: OrderStatus): boolean => !CLOSED_STATUSES.includes(status)
+
+/**
+ * Waiting for a courier: no courier yet AND a courier is the one who normally moves it from here. Derived from
+ * the table, so it is the same queue the database offers couriers (courier/aguardando_motoboy, ride/criado,
+ * food/pronto): an unassigned order can only be in those states, because nothing past them is reachable without
+ * a courier (transition_order refuses it, for the admin too).
+ */
+export function awaitingCourier(rows: TransitionRow[], order: OrderLike): boolean {
+  return (
+    order.courier_id === null &&
+    rows.some((r) => r.kind === order.kind && r.from_status === order.status && r.allowed_role === 'courier')
+  )
+}
+
+export const STATUS_LABEL: Record<OrderStatus, string> = {
+  criado: 'Criado',
+  aguardando_loja: 'Aguardando a loja',
+  aguardando_motoboy: 'Aguardando motoboy',
+  em_preparo: 'Em preparo',
+  pronto: 'Pronto para retirar',
+  aceito: 'Aceito pelo motoboy',
+  motoboy_chegou: 'Motoboy chegou',
+  coletado: 'Coletado',
+  em_rota: 'Em rota',
+  em_viagem: 'Em viagem',
+  entregue: 'Entregue',
+  finalizado: 'Finalizado',
+  cancelado: 'Cancelado',
+}
+export const KIND_LABEL: Record<OrderKind, string> = { food: 'Comida', courier: 'Encomenda', ride: 'Moto-táxi' }
