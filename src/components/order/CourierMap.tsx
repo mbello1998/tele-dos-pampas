@@ -2,11 +2,14 @@
 
 // Mapa do rastreio. Tiles de um provedor configurável + um marcador que desliza.
 //
-// Por que não Leaflet aqui: a tela de rastreio só precisa de um quadro fixo que segue a moto. Sem arrastar, sem
-// zoom do usuário, sem camadas. Leaflet pesa dezenas de kB de JS para o público de plano pré-pago e trocaria
-// o movimento do marcador pelo laço interno dele; aqui o marcador e a câmera andam por `transform`, num único
-// laço de requestAnimationFrame (createMarkerAnimator). O seletor de endereço (outra tarefa) continua com o
-// componente de mapa dele.
+// POR QUE NÃO LEAFLET AQUI (decisão deliberada; não "conserte" trocando por Leaflet para ficar consistente).
+// O projeto usa Leaflet no seletor de endereço (src/components/map), e ali ele é a ferramenta certa: o usuário
+// arrasta, dá pan e zoom para colocar um pino, então paga o peso de arrasto, pinça, inércia e camadas. Aqui o
+// cliente só ASSISTE a uma moto andar. Quadro fixo que segue o motoboy, sem gesto nenhum: Leaflet custaria
+// dezenas de kB de JS num Android de entrada com plano pré-pago (a restrição que não se negocia) e trocaria o
+// movimento do marcador pelo laço interno dele. Aqui marcador e câmera andam por `transform`, num único laço de
+// requestAnimationFrame (createMarkerAnimator). A divisão é de propósito: Leaflet onde o usuário manipula o
+// mapa, uma vista levíssima onde ele só olha.
 //
 // Tudo degrada sem quebrar:
 //   - setting `map.tile_url` ausente, economia de dados ou tiles que não carregam: no lugar do mapa fica o

@@ -618,3 +618,102 @@ describe('mutantes: a matriz de casos pega policy errada', () => {
     })
   }
 })
+
+// =========================================================================================================
+// ESCRITA: o motoboy só grava posição contra pedido ATIVO (0027). Linha que ninguém pode ler é custo puro.
+// =========================================================================================================
+const ACTIVE_SET = new Set<string>(TRACKING_ACTIVE_STATUSES)
+
+/** O motoboy Q1 tenta gravar uma posição contra o pedido oFleet1, com o pedido no status dado. */
+async function insertAllowed(target: string, status: string, order: string | null = ID.oFleet1): Promise<boolean> {
+  const sql = `savepoint c; reset role; ${setStatus(status)} ${asSql(courierQ1)}
+    insert into ${target} (courier_id, order_id, lat, lng) values ('${ID.courierQ1}', ${order ? `'${order}'` : 'null'}, -30.2, -56.4);
+    reset role; rollback to savepoint c;`
+  try {
+    await db.query(sql)
+    return true
+  } catch (e) {
+    await db.query('rollback to savepoint c')
+    if ((e as { code?: string }).code !== '42501') throw e // só a recusa da RLS conta como negação
+    return false
+  }
+}
+
+describe('courier_positions: o motoboy só grava enquanto o pedido está ativo', () => {
+  for (const s of ALL_STATUSES) {
+    const active = ACTIVE_SET.has(s)
+    test(`${active ? 'PERMITE' : 'NEGA'} | o motoboy ${active ? 'grava' : 'não grava'} posição contra o pedido em '${s}'`, async () => {
+      expect(await insertAllowed('public.courier_positions', s)).toBe(active)
+    })
+  }
+
+  test('PERMITE | posição parada (sem pedido) continua podendo ser gravada, em qualquer estado dos pedidos', async () => {
+    expect(await insertAllowed('public.courier_positions', 'entregue', null)).toBe(true)
+  })
+
+  test('NEGA | continua sem gravar contra pedido de outro motoboy, mesmo ativo', async () => {
+    expect(await insertAllowed('public.courier_positions', 'coletado', ID.oTakenQ2)).toBe(false)
+  })
+
+  // Mutantes da escrita: a função e a policy de INSERT são copiadas em pg_temp a partir das definições vivas.
+  async function buildInsertTarget(edits: Edit[]): Promise<string> {
+    await db.query(`reset role`)
+    await db.query(`create temp table pos_i (like public.courier_positions including defaults including identity)`)
+    await db.query(`alter table pg_temp.pos_i enable row level security`)
+    await db.query(`grant select, insert on pg_temp.pos_i to authenticated`)
+    const fn = (await db.query(`select pg_get_functiondef('private.courier_carries_active_order(uuid)'::regprocedure) as d`)).rows[0].d as string
+    const mutated = apply(
+      fn.replace(/private\.courier_carries_active_order/g, 'pg_temp.courier_carries_active_order_m'),
+      edits,
+      'courier_carries_active_order',
+    )
+    await db.query(mutated)
+    const pol = (await db.query(`select pg_get_expr(polwithcheck, polrelid) as w from pg_policy
+      where polrelid = 'public.courier_positions'::regclass and polname = 'courier_positions_insert_own'`)).rows[0].w as string
+    const w = pol.replace(/private\.courier_carries_active_order\(/g, 'pg_temp.courier_carries_active_order_m(')
+    if (w === pol) throw new Error('a policy de INSERT não usa courier_carries_active_order')
+    await db.query(`create policy ins_m on pg_temp.pos_i for insert to authenticated with check (${w})`)
+    return 'pg_temp.pos_i'
+  }
+  async function wrongStatuses(target: string): Promise<string[]> {
+    const wrong: string[] = []
+    for (const s of ALL_STATUSES) if ((await insertAllowed(target, s)) !== ACTIVE_SET.has(s)) wrong.push(s)
+    if ((await insertAllowed(target, 'coletado', ID.oTakenQ2)) !== false) wrong.push('pedido-de-outro')
+    return wrong
+  }
+
+  const INSERT_MUTANTS: Record<string, { edits: Edit[]; caught: string[] }> = {
+    baseline: { edits: [], caught: [] },
+    'escrita: o status deixa de ser conferido': {
+      edits: [{ from: /and o\.status in \([^)]*\)/, to: 'and true' }],
+      caught: ['entregue', 'cancelado', 'criado'],
+    },
+    'escrita: entregue volta a ser gravável': {
+      edits: [{ from: `'em_viagem'`, to: `'em_viagem', 'entregue'` }],
+      caught: ['entregue'],
+    },
+    'escrita: lista negra só com entregue': {
+      edits: [{ from: /and o\.status in \([^)]*\)/, to: `and o.status <> 'entregue'` }],
+      caught: ['finalizado', 'cancelado'],
+    },
+    'escrita: qualquer motoboy grava em qualquer pedido': {
+      edits: [{ from: /and o\.courier_id = \(select auth\.uid\(\)\)/, to: '' }],
+      caught: ['pedido-de-outro'],
+    },
+  }
+  for (const [name, m] of Object.entries(INSERT_MUTANTS)) {
+    test(name === 'baseline' ? 'baseline da escrita: a cópia em pg_temp, sem defeito, se comporta como a viva' : `mutante: ${name}`, async () => {
+      await db.query('savepoint m')
+      try {
+        const wrong = await wrongStatuses(await buildInsertTarget(m.edits))
+        if (name === 'baseline') expect(wrong).toEqual([])
+        else {
+          expect(wrong.length, `o mutante "${name}" SOBREVIVEU`).toBeGreaterThan(0)
+          expect(m.caught.some((c) => wrong.includes(c)), `pego, mas não pelo caso esperado: ${wrong.join(', ')}`).toBe(true)
+        }
+      } finally {
+        await db.query('rollback to savepoint m')
+      }
+    })
+  }
+})
