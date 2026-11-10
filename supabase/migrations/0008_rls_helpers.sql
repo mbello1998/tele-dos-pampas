@@ -121,6 +121,14 @@ to authenticated, service_role;
 -- Anything not listed (including columns added later) is read-only for anon/authenticated sessions
 -- unless the actor is admin. It is skipped for other database roles on purpose: SECURITY DEFINER
 -- functions (create_order, transition_order) run as the owner and service_role is server-side.
+--
+-- LOAD-BEARING TRIGGER ORDER. Postgres fires BEFORE triggers on a table in NAME order, and each one sees the
+-- NEW row as the previous one left it. This guard compares NEW with OLD at its own position, so any other
+-- BEFORE UPDATE trigger on the same table whose name sorts AFTER 'restrict_update_columns' and that modifies
+-- NEW (a default stamper, a normaliser) would change columns after the allowlist already approved the row,
+-- silently bypassing it. Today it is safe: the other BEFORE UPDATE triggers (courier_radius_guard,
+-- fleet_radius_guard, ...) sort earlier. Keep it that way: name any new BEFORE UPDATE trigger that writes to
+-- NEW so it sorts before 'restrict_update_columns' (for example 'a_...'), or do the work in an AFTER trigger.
 create function private.restrict_update_columns() returns trigger
 language plpgsql set search_path = ''
 as $$

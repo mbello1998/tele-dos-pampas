@@ -116,7 +116,7 @@ insert into public.orders (id, kind, client_id, merchant_id, courier_id, fleet_i
   ('${ID.oTakenQ2}', 'courier', '${ID.clientA}', null, '${ID.courierQ2}', null, '${addr('quarai')}', '${addr('quarai')}',
      'aceito', 25.00, 25.00, 'pix', '{"base": 10}', 7.8),
   ('${ID.oFleet1}', 'food', '${ID.clientA}', '${ID.shop1}', '${ID.courierQ1}', '${ID.fleet1}', '${addr('quarai')}', '${addr('quarai')}',
-     'coletado', 50.00, 50.00, 'pix', '{"base": 10, "items_subtotal": 40, "commission": 5}', 7.8),
+     'coletado', 50.00, 50.00, 'pix', '{"base": 10, "items_subtotal": 40}', 7.8),
   ('${ID.oShop1New}', 'food', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
      'aguardando_loja', 45.00, 45.00, 'pix', '{"base": 10}', 7.8),
   ('${ID.oShop1Draft}', 'food', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
@@ -126,6 +126,9 @@ insert into public.order_items (order_id, item_id, name_snapshot, unit_price_brl
   ('${ID.oFleet1}', '${ID.item1}', 'X-Pampa', 20.00, 2, 40.00),
   ('${ID.oShop1New}', '${ID.item1}', 'X-Pampa', 20.00, 1, 20.00),
   ('${ID.oQueueA}', '${ID.item2}', 'Milanesa', 30.00, 2, 60.00);
+
+insert into public.order_commissions (order_id, commission_brl) values
+  ('${ID.oFleet1}', 5.00), ('${ID.oQueueA}', 6.00), ('${ID.oShop1Draft}', 4.50);
 
 insert into public.order_events (order_id, from_status, to_status, actor_id, actor_role) values
   ('${ID.oFleet1}', 'pronto', 'coletado', '${ID.courierQ1}', 'courier');
