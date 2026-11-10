@@ -1,11 +1,15 @@
-/* Tokens visuais "pampa". Tema escuro é o padrão. */
-:root {
-  --noite: #0B0F0D; /* fundo */
-  --sol: #F2A516;
-  --brasa: #D9452B;
-  --rio: #2E7D8C;
-  --campo: #1F4D3A;
+/* Tokens visuais "pampa". Tema escuro é o padrão.
+   Declarados uma única vez, em @theme: geram bg-noite, text-sol, text-brasa,
+   text-rio, bg-campo e as variáveis --color-*. */
+@theme {
+  --color-noite: #0B0F0D; /* fundo */
+  --color-sol: #F2A516;
+  --color-brasa: #D9452B;
+  --color-rio: #2E7D8C;
+  --color-campo: #1F4D3A;
+}
 
+:root {
   color-scheme: dark;
 }
 
