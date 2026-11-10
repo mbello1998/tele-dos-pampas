@@ -65,7 +65,9 @@ insert into public.profiles (id, role, full_name, status, home_city) values
   ('${ID.fleetOwner1}', 'fleet', 'Frota 1', 'active', 'quarai'),
   ('${ID.fleetOwner2}', 'fleet', 'Frota 2', 'active', 'artigas'),
   ('${ID.blockedAdmin}', 'admin', 'Admin bloqueado', 'blocked', 'quarai'),
-  ('${ID.pendingCourier}', 'courier', 'Motoboy pendente', 'pending', 'quarai');
+  ('${ID.pendingCourier}', 'courier', 'Motoboy pendente', 'pending', 'quarai')
+  -- on_auth_user_created (0023) already made a client row for each auth user above: the fixture sets the real role.
+  on conflict (id) do update set role = excluded.role, full_name = excluded.full_name, status = excluded.status, home_city = excluded.home_city;
 
 insert into public.fleets (id, owner_id, name, city, status) values
   ('${ID.fleet1}', '${ID.fleetOwner1}', 'Tele Quarai', 'quarai', 'approved'),
