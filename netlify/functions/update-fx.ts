@@ -83,13 +83,13 @@ export async function updateFx({ db, fetchFn, apiKey, today, log }: UpdateFxOpti
   const day = toValidForDate(today)
   // Spread é decisão de negócio, não da API: herda o da linha mais recente (0 se não houver).
   // Essa linha pode ser um override manual: o spread dele passa adiante para as linhas seguintes da
-  // API até alguém alterá-lo.
+  // API até alguém alterá-lo. A ordem (manual primeiro) é a mesma de getEffectiveRate.
   // `on conflict do nothing` (constraint da migração 0015) torna a repetição um no-op, mesmo concorrente.
   const { rows } = await db.query(
     `insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date)
      select $1::numeric, 'fxfeed', coalesce(
               (select spread_pct from public.fx_rates where pair = 'BRL/UYU'
-               order by valid_for_date desc, fetched_at desc limit 1), 0),
+               order by valid_for_date desc, is_manual_override desc, fetched_at desc limit 1), 0),
             false, $2::date
      on conflict (pair, valid_for_date, is_manual_override) do nothing
      returning id`,
@@ -110,7 +110,7 @@ export default async function handler(): Promise<Response> {
     try {
       await updateFx({
         db,
-        fetchFn: (url) => fetch(url),
+        fetchFn: (url, init) => fetch(url, init),
         apiKey: process.env.FXFEED_API_KEY,
         today: new Date(),
         log: (m) => console.log(m),

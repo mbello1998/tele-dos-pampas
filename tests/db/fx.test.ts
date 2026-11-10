@@ -2,7 +2,7 @@ import type { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { connect } from '../../scripts/db/client'
 import { DB_TIMEOUT_MS, getEffectiveRate } from '../../src/lib/fx/rate'
-import { updateFx } from '../../netlify/functions/update-fx'
+import handler, { updateFx } from '../../netlify/functions/update-fx'
 
 let db: Client
 
@@ -148,10 +148,45 @@ describe('updateFx', () => {
     expect(await getEffectiveRate(D, db)).toMatchObject({ rate: 7.7, validForDate: '2026-11-07', isStale: true })
   })
 
+  test('dia com linha manual e da API: o spread herdado é o do manual, como na leitura', async () => {
+    await db.query(
+      `insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date, fetched_at)
+       values (8.1, 'manual', 3, true, '2026-11-08', '2026-11-08T08:00:00Z'),
+              (7.9, 'fxfeed', 5, false, '2026-11-08', '2026-11-08T09:00:00Z')`,
+    )
+    expect(await getEffectiveRate(new Date('2026-11-08T12:00:00Z'), db)).toMatchObject({ spreadPct: 3 })
+    await updateFx({ db, fetchFn: ok(7.8), apiKey: 'k', today: D, log })
+    expect(await getEffectiveRate(D, db)).toMatchObject({ rate: 7.8, spreadPct: 3, isStale: false })
+  })
+
   test('nova linha herda o spread da linha mais recente', async () => {
     await insertRate('7.700000', '2026-11-07', { spread: '6.50' })
     await updateFx({ db, fetchFn: ok(7.8), apiKey: 'k', today: D, log })
     const r = await getEffectiveRate(D, db)
     expect(r).toMatchObject({ rate: 7.8, spreadPct: 6.5, isStale: false })
+  })
+})
+
+describe('handler (fiação de produção)', () => {
+  test('o handler repassa o AbortSignal ao fetch real (global), não só ao fake dos testes', async () => {
+    const seen: unknown[] = []
+    const stub = vi.fn((_url: string, init?: RequestInit) => {
+      seen.push(init?.signal)
+      // HTTP 500: o handler termina em api-failed sem gravar nada no banco compartilhado.
+      return Promise.resolve(new Response('boom', { status: 500 }))
+    })
+    vi.stubGlobal('fetch', stub)
+    const savedKey = process.env.FXFEED_API_KEY
+    process.env.FXFEED_API_KEY = 'chave-de-teste'
+    try {
+      const res = await handler()
+      expect(res.status).toBe(200)
+    } finally {
+      vi.unstubAllGlobals()
+      if (savedKey === undefined) delete process.env.FXFEED_API_KEY
+      else process.env.FXFEED_API_KEY = savedKey
+    }
+    expect(stub).toHaveBeenCalledTimes(1)
+    expect(seen[0]).toBeInstanceOf(AbortSignal)
   })
 })
