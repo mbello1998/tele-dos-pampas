@@ -65,3 +65,57 @@ insert into public.merchants (
   ('00000000-0000-4000-8000-000000000002', 'Restaurante La Frontera (ejemplo)', 'restaurante', 'artigas', 'UY',
    'Centro, Artigas', -30.400000, -56.470000, 25, 10.00, true, 'approved')
 on conflict (id) do nothing;
+
+-- ===== Dados de demonstracao (catalogo, horarios e opcoes) =====
+-- Idempotente. Trailer de Quarai com janela que cruza a meia-noite (06:00-00:00);
+-- restaurante de Artigas com janela simples (08:00-23:00). De proposito: exercita os dois caminhos.
+-- Horarios: o trailer de Quarai usa janela que CRUZA a meia-noite (06:00-00:00),
+-- o restaurante de Artigas usa janela simples (08:00-23:00). De proposito: exercita os dois caminhos.
+insert into public.merchant_hours (id, merchant_id, weekday, opens_at, closes_at)
+select ('00000000-0000-4000-8000-0000000100'||lpad(d::text,2,'0'))::uuid,
+       '00000000-0000-4000-8000-000000000001'::uuid, d, '06:00', '00:00'
+from generate_series(0,6) d
+on conflict (id) do nothing;
+
+insert into public.merchant_hours (id, merchant_id, weekday, opens_at, closes_at)
+select ('00000000-0000-4000-8000-0000000200'||lpad(d::text,2,'0'))::uuid,
+       '00000000-0000-4000-8000-000000000002'::uuid, d, '08:00', '23:00'
+from generate_series(0,6) d
+on conflict (id) do nothing;
+
+-- Categorias
+insert into public.catalog_categories (id, merchant_id, name, sort_order) values
+ ('00000000-0000-4000-8000-000000001101','00000000-0000-4000-8000-000000000001','Xis',1),
+ ('00000000-0000-4000-8000-000000001102','00000000-0000-4000-8000-000000000001','Bebidas',2),
+ ('00000000-0000-4000-8000-000000001201','00000000-0000-4000-8000-000000000002','Platos',1),
+ ('00000000-0000-4000-8000-000000001202','00000000-0000-4000-8000-000000000002','Bebidas',2)
+on conflict (id) do nothing;
+
+-- Itens (price_brl e a moeda canonica, inclusive para a loja uruguaia)
+insert into public.catalog_items (id, merchant_id, category_id, name, description, price_brl, is_available, sort_order) values
+ ('00000000-0000-4000-8000-000000002101','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000001101','Xis de coração','Pão, coração de galinha, queijo, alface e tomate',32.00,true,1),
+ ('00000000-0000-4000-8000-000000002102','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000001101','Xis salada','Pão, hambúrguer, queijo, alface, tomate e maionese',28.00,true,2),
+ ('00000000-0000-4000-8000-000000002103','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000001102','Coca-Cola lata','350 ml',7.00,true,1),
+ ('00000000-0000-4000-8000-000000002104','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000001102','Água mineral','500 ml',4.00,true,2),
+ ('00000000-0000-4000-8000-000000002201','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000001201','Chivito al plato','Lomo, jamón, queso, huevo y papas fritas',45.00,true,1),
+ ('00000000-0000-4000-8000-000000002202','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000001201','Milanesa con papas','Milanesa de carne con papas fritas',38.00,true,2),
+ ('00000000-0000-4000-8000-000000002203','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000001202','Refresco','Lata 350 ml',8.00,true,1),
+ ('00000000-0000-4000-8000-000000002204','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000001202','Agua mineral','500 ml',5.00,true,2)
+on conflict (id) do nothing;
+
+-- Grupos de opcao: um obrigatorio de escolha unica, um opcional com multiplos
+insert into public.item_option_groups (id, item_id, name, min_select, max_select, is_required) values
+ ('00000000-0000-4000-8000-000000003101','00000000-0000-4000-8000-000000002101','Ponto da carne',1,1,true),
+ ('00000000-0000-4000-8000-000000003102','00000000-0000-4000-8000-000000002101','Adicionais',0,3,false)
+on conflict (id) do nothing;
+
+insert into public.item_options (id, group_id, name, price_delta_brl, is_available) values
+ ('00000000-0000-4000-8000-000000004101','00000000-0000-4000-8000-000000003101','Ao ponto',0.00,true),
+ ('00000000-0000-4000-8000-000000004102','00000000-0000-4000-8000-000000003101','Bem passado',0.00,true),
+ ('00000000-0000-4000-8000-000000004103','00000000-0000-4000-8000-000000003102','Bacon',4.00,true),
+ ('00000000-0000-4000-8000-000000004104','00000000-0000-4000-8000-000000003102','Ovo',3.00,true),
+ ('00000000-0000-4000-8000-000000004105','00000000-0000-4000-8000-000000003102','Cheddar',3.00,true)
+on conflict (id) do nothing;
+
+-- URL dos tiles do mapa (trocavel sem deploy; a politica do OSM proibe trafego pesado)
+insert into public.settings (key, value, is_public) values ('map.tile_url', '"https://tile.openstreetmap.org/{z}/{x}/{y}.png"'::jsonb, true) on conflict (key) do nothing;
