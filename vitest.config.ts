@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // O tsconfig usa jsx: preserve (quem compila é o Next); no Vitest o JSX precisa ser transformado.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     globals: true,
     environment: 'node',

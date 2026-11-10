@@ -1,0 +1,28 @@
+/* Movimento da landing que roda SEM JavaScript: é por onde o hero entra, antes mesmo da
+   hidratação, sem piscar. Só `transform` e `opacity`.
+
+   Tudo vive dentro de `no-preference`: com prefers-reduced-motion ligado nenhuma regra daqui se
+   aplica, e as palavras ficam onde o servidor as colocou, visíveis. */
+@media (prefers-reduced-motion: no-preference) {
+  .palavra {
+    display: inline-block;
+    animation: palavra-sobe 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+  }
+
+  .entra {
+    animation: palavra-sobe 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--delay, 0.6s);
+  }
+
+  @keyframes palavra-sobe {
+    from {
+      opacity: 0;
+      transform: translateY(0.45em);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
