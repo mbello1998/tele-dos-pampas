@@ -1154,7 +1154,7 @@ describe('políticas RLS', () => {
       await actAs(db, clientA)
       expect((await attempt(db, `update profiles set phone = '+5555999990000' where id = $1`, [ID.clientA])).ok).toBe(true)
       const r = await asOwner<{ actor_id: string; before: Record<string, unknown>; after: Record<string, unknown> }>(
-        db, `select actor_id, before, after from audit_log where table_name = 'profiles' and record_id = $1 and action = 'UPDATE'`, [ID.clientA])
+        db, `select actor_id, before, after from audit_log where table_name = 'profiles' and record_id = $1 and action = 'UPDATE' and actor_id is not null`, [ID.clientA]) // actor_id is not null: o upsert do fixture (dono, sem sessao) tambem gera uma linha de UPDATE
       expect(r).toHaveLength(1)
       expect(r[0].actor_id).toBe(ID.clientA)
       expect(r[0].before.phone).toBeNull()
