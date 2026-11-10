@@ -119,13 +119,15 @@ async function install(db: Client) {
 
 // ---------------------------------------------------------------------------------------------------------
 // ids. 7a… = linhas de fixture (rollback). 7b… = a seção de concorrência (commit + limpeza).
+// TRANSITION_SLOT (0 a 9) separa os ids de execuções simultâneas (a bateria de mutantes roda em paralelo).
+const SLOT = process.env.TRANSITION_SLOT ?? '0'
 const hex = (n: number) => n.toString(16).padStart(12, '0')
-const u = (n: number) => `7a000000-0000-4000-8000-${hex(n)}`
+const u = (n: number) => `7a00000${SLOT}-0000-4000-8000-${hex(n)}`
 const ID = {
   admin: u(1), blockedAdmin: u(2), clientA: u(3), clientB: u(4), merchant1: u(5), merchant2: u(6),
   courierQ1: u(7), courierQ2: u(8), courierA1: u(9), courierPending: u(10), fleetOwner: u(11), fleetUser: u(12),
-  shop1: `7a100000-0000-4000-8000-${hex(1)}`, shop2: `7a100000-0000-4000-8000-${hex(2)}`,
-  fleet1: `7a200000-0000-4000-8000-${hex(1)}`,
+  shop1: `7a10000${SLOT}-0000-4000-8000-${hex(1)}`, shop2: `7a10000${SLOT}-0000-4000-8000-${hex(2)}`,
+  fleet1: `7a20000${SLOT}-0000-4000-8000-${hex(1)}`,
 } as const
 
 type Kind = 'food' | 'courier' | 'ride'
@@ -138,7 +140,7 @@ type Status = (typeof STATUSES)[number]
 const FIXTURE = `
 insert into auth.users (id, email) values
   ${Object.entries({ admin: 1, blockedAdmin: 2, clientA: 3, clientB: 4, merchant1: 5, merchant2: 6, courierQ1: 7, courierQ2: 8, courierA1: 9, courierPending: 10, fleetOwner: 11, fleetUser: 12 })
-    .map(([k, n]) => `('${u(n)}', '${k.toLowerCase()}@transition-fixture.invalid')`).join(',\n  ')};
+    .map(([k, n]) => `('${u(n)}', '${k.toLowerCase()}@transition-fixture${SLOT}.invalid')`).join(',\n  ')};
 insert into public.profiles (id, role, full_name, status, home_city) values
   ('${ID.admin}', 'admin', 'Admin', 'active', 'quarai'),
   ('${ID.blockedAdmin}', 'admin', 'Admin bloqueado', 'blocked', 'quarai'),
@@ -167,7 +169,7 @@ insert into public.merchants (id, owner_id, name, kind, city, country, status, c
 
 let db: Client
 let seq = 0
-const orderId = (n: number) => `7a300000-0000-4000-8000-${hex(n)}`
+const orderId = (n: number) => `7a30000${SLOT}-0000-4000-8000-${hex(n)}`
 
 const addr = (city: string) => JSON.stringify({ city, street_name: 'Rua teste', number: '1' })
 
@@ -256,20 +258,35 @@ const events = async (id: string) => {
 beforeAll(async () => {
   db = await connect()
   await install(db)
-  await db.query('begin')
-  await db.query(FIXTURE)
 })
 afterAll(async () => {
-  try { await db.query('rollback') } finally { await db.end() }
+  await db.end()
 })
-beforeEach(async () => { await db.query('savepoint t') })
-afterEach(async () => {
-  await db.query('reset role').catch(() => undefined)
-  await db.query('rollback to savepoint t')
-})
+
+/**
+ * Each describe that needs rows runs them in its OWN short transaction, always rolled back. One transaction for
+ * the whole file would sit on audit_log (the audit triggers write to it) for the whole run, and a TRUNCATE of
+ * that table by another suite queues behind it and blocks everyone behind the TRUNCATE, this file's cleanup
+ * included.
+ */
+function inFixture() {
+  beforeAll(async () => {
+    await db.query('begin')
+    await db.query(FIXTURE)
+  })
+  afterAll(async () => {
+    await db.query('rollback')
+  })
+  beforeEach(async () => { await db.query('savepoint t') })
+  afterEach(async () => {
+    await db.query('reset role').catch(() => undefined)
+    await db.query('rollback to savepoint t')
+  })
+}
 
 // =========================================================================================================
 describe('transition_order: o que a tabela permite e o que ela não permite', () => {
+  inFixture()
   test('transição listada em status_transitions para o papel é aceita, e o estado e os carimbos andam', async () => {
     const id = await mkOrder({ kind: 'food', status: 'criado' })
     accepted(await move(ID.clientA, id, 'aguardando_loja'))
@@ -324,6 +341,7 @@ describe('transition_order: o que a tabela permite e o que ela não permite', ()
 
 // =========================================================================================================
 describe('transition_order: cancelamento', () => {
+  inFixture()
   const cancelFromByClient: [Kind, Status][] = [['food', 'criado'], ['food', 'aguardando_loja'], ['courier', 'criado'], ['courier', 'aguardando_motoboy'], ['ride', 'criado']]
   test.each(cancelFromByClient)('client cancela %s a partir de %s, e o motivo e o autor ficam gravados', async (kind, status) => {
     const id = await mkOrder({ kind, status })
@@ -390,6 +408,7 @@ describe('transition_order: cancelamento', () => {
 
 // =========================================================================================================
 describe('transition_order: quem move, e o rastro', () => {
+  inFixture()
   test('toda transição grava order_events com ator e papel, para cada papel', async () => {
     const food = await mkOrder({ kind: 'food', status: 'criado' })
     accepted(await move(ID.clientA, food, 'aguardando_loja'))
@@ -514,6 +533,7 @@ describe('transition_order: quem move, e o rastro', () => {
 
 // =========================================================================================================
 describe('admin: qualquer transição, sempre com motivo e registro (o bypass mora na função, não na tabela)', () => {
+  inFixture()
   test('status_transitions continua SEM linhas de admin (o atalho é da função)', async () => {
     await as('postgres')
     const r = await db.query(`select count(*)::int as n from public.status_transitions where allowed_role = 'admin'`)
@@ -580,6 +600,7 @@ describe('admin: qualquer transição, sempre com motivo e registro (o bypass mo
 
 // =========================================================================================================
 describe('assign_courier: despacho manual', () => {
+  inFixture()
   test('atribuir motoboy copia fleet_id de couriers para o pedido e aceita a corrida da fila', async () => {
     const id = await mkOrder({ kind: 'courier', status: 'aguardando_motoboy' })
     accepted(await assign(ID.admin, id, ID.courierQ1, 'ligou para o Q1'))
@@ -641,6 +662,7 @@ describe('assign_courier: despacho manual', () => {
 
 // =========================================================================================================
 describe('dispatch_couriers: o raio vem de private.effective_radius_km, nunca da coluna', () => {
+  inFixture()
   test('o raio mostrado ao despachante é o efetivo (o menor das três camadas)', async () => {
     await as('postgres')
     const global = Number((await db.query(`select value #>> '{}' as v from public.settings where key = 'service_radius_km'`)).rows[0].v)
@@ -684,6 +706,7 @@ describe('dispatch_couriers: o raio vem de private.effective_radius_km, nunca da
 
 // =========================================================================================================
 describe('o console só mostra botão que o banco aceita (legalTargets == o que transition_order aceita)', () => {
+  inFixture()
   /**
    * Para cada kind e cada status, cria o pedido na forma em que o papel o veria e pergunta ao BANCO, uma
    * transição por vez (cada tentativa desfeita), quais destinos ele aceita. O conjunto tem de ser exatamente o
@@ -812,10 +835,10 @@ describe('Server Actions repetem uma vez no deadlock 40P01', () => {
 // prefixo 7b… e apaga exatamente elas (antes, caso uma execução anterior tenha morrido no meio, e depois).
 // A interleavação é FORÇADA, não esperada: a segunda instrução é vista esperando um lock em pg_stat_activity antes
 // de a primeira ser liberada.
-const r = (n: number) => `7b000000-0000-4000-8000-${hex(n)}`
+const r = (n: number) => `7b00000${SLOT}-0000-4000-8000-${hex(n)}`
 const RACE = {
-  client: r(1), courier1: r(2), courier2: r(3), admin: r(4), fleetOwner: r(5), fleet: `7b200000-0000-4000-8000-${hex(1)}`,
-  orders: [1, 2, 3, 4, 5].map((n) => `7b300000-0000-4000-8000-${hex(n)}`),
+  client: r(1), courier1: r(2), courier2: r(3), admin: r(4), fleetOwner: r(5), fleet: `7b20000${SLOT}-0000-4000-8000-${hex(1)}`,
+  orders: [1, 2, 3, 4, 5].map((n) => `7b30000${SLOT}-0000-4000-8000-${hex(n)}`),
 }
 const RACE_USERS = [RACE.client, RACE.courier1, RACE.courier2, RACE.admin, RACE.fleetOwner]
 
@@ -844,7 +867,7 @@ describe('aceite atômico: dois aceites simultâneos deixam o pedido com UM só 
     two = await connect()
     await cleanup()
     await admin.query(
-      `insert into auth.users (id, email) values ${RACE_USERS.map((x, i) => `('${x}', 'race${i}@transition.invalid')`).join(', ')};
+      `insert into auth.users (id, email) values ${RACE_USERS.map((x, i) => `('${x}', 'race${i}@transition${SLOT}.invalid')`).join(', ')};
        insert into public.profiles (id, role, full_name, status, home_city) values
          ('${RACE.client}', 'client', 'Cliente corrida', 'active', 'quarai'),
          ('${RACE.courier1}', 'courier', 'Motoboy 1', 'active', 'quarai'),
