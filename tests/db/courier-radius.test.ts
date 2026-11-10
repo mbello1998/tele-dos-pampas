@@ -36,7 +36,8 @@ beforeEach(async () => {
   await db.query(`
     insert into auth.users (id, email) values ('${X}', 'x@rls-fixture.invalid'), ('${Y}', 'y@rls-fixture.invalid');
     insert into public.profiles (id, role, full_name, status, home_city) values
-      ('${X}', 'courier', 'Motoboy X', 'active', 'quarai'), ('${Y}', 'courier', 'Motoboy Y', 'active', 'quarai');
+      ('${X}', 'courier', 'Motoboy X', 'active', 'quarai'), ('${Y}', 'courier', 'Motoboy Y', 'active', 'quarai')
+      on conflict (id) do update set role = excluded.role, full_name = excluded.full_name, status = excluded.status, home_city = excluded.home_city;
     insert into public.couriers (profile_id, vehicle, base_city, fleet_id, status) values
       ('${X}', 'moto', 'quarai', '${ID.fleet1}', 'approved'), ('${Y}', 'moto', 'quarai', '${ID.fleet1}', 'approved');
     update public.couriers set work_radius_km = 2 where profile_id = '${X}';
@@ -272,7 +273,8 @@ describe('courier_events: o que gera evento', () => {
     await asOwner(
       db,
       `insert into auth.users (id, email) values ('${Z}', 'z@rls-fixture.invalid');
-       insert into public.profiles (id, role, full_name, status, home_city) values ('${Z}', 'courier', 'Z', 'active', 'quarai');
+       insert into public.profiles (id, role, full_name, status, home_city) values ('${Z}', 'courier', 'Z', 'active', 'quarai')
+         on conflict (id) do update set role = excluded.role, full_name = excluded.full_name, status = excluded.status, home_city = excluded.home_city;
        insert into public.couriers (profile_id, vehicle, base_city, is_online, is_available, work_radius_km)
          values ('${Z}', 'moto', 'quarai', true, false, 2)`,
     )

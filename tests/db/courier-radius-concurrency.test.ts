@@ -47,7 +47,8 @@ const setup = async () => {
        ('${IDS.ownerB}', 'owner-b@concurrency.invalid'), ('${IDS.courierB}', 'courier-b@concurrency.invalid');
      insert into public.profiles (id, role, full_name, status, home_city) values
        ('${IDS.ownerA}', 'fleet', 'Owner A', 'active', 'quarai'), ('${IDS.courierA}', 'courier', 'Courier A', 'active', 'quarai'),
-       ('${IDS.ownerB}', 'fleet', 'Owner B', 'active', 'quarai'), ('${IDS.courierB}', 'courier', 'Courier B', 'active', 'quarai');
+       ('${IDS.ownerB}', 'fleet', 'Owner B', 'active', 'quarai'), ('${IDS.courierB}', 'courier', 'Courier B', 'active', 'quarai')
+     on conflict (id) do update set role = excluded.role, full_name = excluded.full_name, status = excluded.status, home_city = excluded.home_city;
      insert into public.fleets (id, owner_id, name, city, status, max_radius_km) values
        ('${IDS.fleetA}', '${IDS.ownerA}', 'Concurrency A', 'quarai', 'approved', 5),
        ('${IDS.fleetB}', '${IDS.ownerB}', 'Concurrency B', 'quarai', 'approved', 5);

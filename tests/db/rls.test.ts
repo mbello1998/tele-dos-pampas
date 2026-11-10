@@ -1311,7 +1311,8 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
       pricingBefore = (await committer.query(`select md5(string_agg(p::text, '|' order by p.id)) h from public.pricing_rules p`)).rows[0].h
       ;[A, C, B, D, E] = [await createUser('a'), await createUser('c'), await createUser('b'), await createUser('d'), await createUser('e')]
       await committer.query(
-        `insert into public.profiles (id, role, full_name) values ($1, 'client', 'E2E A'), ($2, 'client', 'E2E C'), ($3, 'admin', 'E2E Admin'), ($4, 'fleet', 'E2E Fleet'), ($5, 'courier', 'E2E Courier')`,
+        `insert into public.profiles (id, role, full_name) values ($1, 'client', 'E2E A'), ($2, 'client', 'E2E C'), ($3, 'admin', 'E2E Admin'), ($4, 'fleet', 'E2E Fleet'), ($5, 'courier', 'E2E Courier')
+         on conflict (id) do update set role = excluded.role, full_name = excluded.full_name`,
         [A.id, C.id, B.id, D.id, E.id],
       )
       await committer.query(
