@@ -112,6 +112,89 @@ function mostlyOutside(group: OverpassWay[], boundary: Polygon): boolean {
 
 const byLatLng = (a: LatLng, b: LatLng) => a.lat - b.lat || a.lng - b.lng
 
+/** Parts of one name more than this far apart become separate records (1 km). */
+export const SPLIT_GAP_M = 1000
+/** A split record's hint uses a reference at most this far from the street (500 m). */
+export const HINT_REFERENCE_M = 500
+/** Highways legitimately run on for kilometres; their names are never split. */
+const NEVER_SPLIT = /^(ruta|rodovia)\b/i
+
+const vertices = (ways: OverpassWay[]): LatLng[] =>
+  ways.flatMap((w) => (w.geometry ?? []).map((g) => ({ lat: g.lat, lng: g.lon })))
+
+/**
+ * Groups the ways of one name into connected parts: ways sharing a coordinate
+ * are joined, then parts closer than SPLIT_GAP_M are joined (single linkage).
+ * Returns the parts ordered by their lowest OSM id (ways arrive sorted by id).
+ */
+function splitByGap(name: string, ways: OverpassWay[]): OverpassWay[][] {
+  if (ways.length < 2 || NEVER_SPLIT.test(name)) return [ways]
+  const parent = ways.map((_, i) => i)
+  const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])))
+  const union = (a: number, b: number) => void (parent[find(a)] = find(b))
+
+  const owner = new Map<string, number>()
+  ways.forEach((w, i) => {
+    for (const g of w.geometry ?? []) {
+      const key = `${g.lat},${g.lon}`
+      const seen = owner.get(key)
+      if (seen === undefined) owner.set(key, i)
+      else union(i, seen)
+    }
+  })
+
+  const pts = ways.map((w) => vertices([w]))
+  const near = (a: number, b: number) =>
+    pts[a].some((p) => pts[b].some((q) => distanceKm(p, q) * 1000 <= SPLIT_GAP_M))
+  for (let i = 0; i < ways.length; i++) {
+    for (let j = i + 1; j < ways.length; j++) {
+      if (find(i) !== find(j) && near(i, j)) union(i, j)
+    }
+  }
+
+  const parts = new Map<number, OverpassWay[]>()
+  ways.forEach((w, i) => parts.set(find(i), [...(parts.get(find(i)) ?? []), w]))
+  return [...parts.values()].sort((a, b) => a[0].id - b[0].id)
+}
+
+/**
+ * A human-recognisable discriminator for one of several same-named streets:
+ * the nearest reference within 500 m, else the nearest crossing street's name.
+ */
+function nearHintFor(
+  segments: LatLng[][],
+  references: Reference[],
+  intersections: Intersection[],
+): string | undefined {
+  const pts = segments.flat()
+  if (pts.length === 0) return undefined
+  let best: Reference | undefined
+  let bestM = Infinity
+  for (const ref of references) {
+    for (const p of pts) {
+      const m = distanceKm(p, ref.at) * 1000
+      if (m < bestM) {
+        bestM = m
+        best = ref
+      }
+    }
+  }
+  if (best && bestM <= HINT_REFERENCE_M) return best.name
+
+  // Fall back to the crossing street closest to the middle of the street.
+  const mid = { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length }
+  let hint: string | undefined
+  let hintKm = Infinity
+  for (const x of intersections) {
+    const km = distanceKm(mid, x.at)
+    if (km < hintKm) {
+      hintKm = km
+      hint = x.streetName
+    }
+  }
+  return hint
+}
+
 export function buildDataset(
   ways: OverpassWay[],
   boundary: Polygon,
@@ -149,66 +232,88 @@ export function buildDataset(
     groups.set(name, [...(groups.get(name) ?? []), w])
   }
 
-  // Stable ids: slug of the full name; a collision gets a numeric suffix,
-  // assigned in name order so it is deterministic.
-  const names = [...groups.keys()].sort()
-  const idByName = new Map<string, string>()
+  // One record per name, except when a name has parts more than SPLIT_GAP_M
+  // apart (distinct streets sharing a name): then one record per part.
+  type Record_ = { name: string; ways: OverpassWay[]; id: string }
+  const records: Record_[] = []
   const taken = new Set<string>()
-  for (const name of names) {
-    const base = `${city}-${slug(name)}`
-    let id = base
-    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
-    taken.add(id)
-    idByName.set(name, id)
+  for (const name of [...groups.keys()].sort()) {
+    const parts = splitByGap(name, groups.get(name) as OverpassWay[])
+    for (const ways of parts) {
+      // Stable ids: slug of the full name; a collision (or a 2nd+ part) gets a
+      // numeric suffix, assigned in name/OSM-id order so it is deterministic.
+      const base = `${city}-${slug(name)}`
+      let id = base
+      for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
+      taken.add(id)
+      records.push({ name, ways, id })
+    }
   }
 
-  // Crossings: a raw (unrounded) coordinate shared by ways of different names.
-  const namesAtPoint = new Map<string, { at: LatLng; names: Set<string> }>()
-  for (const [name, group] of groups) {
-    for (const w of group) {
+  // Crossings: a raw (unrounded) coordinate shared by ways of different records.
+  const recordsAtPoint = new Map<string, { at: LatLng; ids: Set<string> }>()
+  for (const rec of records) {
+    for (const w of rec.ways) {
       for (const g of w.geometry ?? []) {
         const key = `${g.lat},${g.lon}`
-        const entry = namesAtPoint.get(key) ?? {
+        const entry = recordsAtPoint.get(key) ?? {
           at: { lat: round5(g.lat), lng: round5(g.lon) },
-          names: new Set<string>(),
+          ids: new Set<string>(),
         }
-        entry.names.add(name)
-        namesAtPoint.set(key, entry)
+        entry.ids.add(rec.id)
+        recordsAtPoint.set(key, entry)
       }
     }
   }
-  const intersectionsByName = new Map<string, Map<string, Intersection>>()
-  for (const { at, names: here } of namesAtPoint.values()) {
-    if (here.size < 2) continue
-    for (const owner of here) {
-      const bucket = intersectionsByName.get(owner) ?? new Map<string, Intersection>()
-      for (const other of here) {
-        if (other === owner) continue
-        const streetId = idByName.get(other) as string
-        bucket.set(`${streetId}@${at.lat},${at.lng}`, { streetId, streetName: other, at })
+  const nameById = new Map(records.map((r) => [r.id, r.name]))
+  const intersectionsById = new Map<string, Map<string, Intersection>>()
+  for (const { at, ids } of recordsAtPoint.values()) {
+    if (ids.size < 2) continue
+    for (const owner of ids) {
+      const bucket = intersectionsById.get(owner) ?? new Map<string, Intersection>()
+      for (const other of ids) {
+        if (other === owner || nameById.get(other) === nameById.get(owner)) continue
+        bucket.set(`${other}@${at.lat},${at.lng}`, {
+          streetId: other,
+          streetName: nameById.get(other) as string,
+          at,
+        })
       }
-      intersectionsByName.set(owner, bucket)
+      intersectionsById.set(owner, bucket)
     }
   }
 
-  const streets: Street[] = names.map((name) => ({
-    id: idByName.get(name) as string,
-    name,
-    nameNormalized: normalizeStreetName(name),
-    city,
-    country,
-    segments: (groups.get(name) as OverpassWay[]).map(roundedSegment).filter((s) => s.length >= 2),
-    ...(mostlyOutside(groups.get(name) as OverpassWay[], boundary) ? { outsideUrban: true } : {}),
-    intersections: [...(intersectionsByName.get(name)?.values() ?? [])].sort(
+  const references = buildReferences(options.references ?? [], boundary, city, options.boundaries)
+  const splitNames = new Set(
+    [...records.reduce((m, r) => m.set(r.name, (m.get(r.name) ?? 0) + 1), new Map<string, number>())]
+      .filter(([, n]) => n > 1)
+      .map(([name]) => name),
+  )
+
+  const streets: Street[] = records.map((rec) => {
+    const segments = rec.ways.map(roundedSegment).filter((s) => s.length >= 2)
+    const intersections = [...(intersectionsById.get(rec.id)?.values() ?? [])].sort(
       (a, b) => a.streetName.localeCompare(b.streetName) || byLatLng(a.at, b.at),
-    ),
-  }))
+    )
+    const hint = splitNames.has(rec.name) ? nearHintFor(segments, references, intersections) : undefined
+    return {
+      id: rec.id,
+      name: rec.name,
+      nameNormalized: normalizeStreetName(rec.name),
+      city,
+      country,
+      segments,
+      ...(hint ? { nearHint: hint } : {}),
+      ...(mostlyOutside(rec.ways, boundary) ? { outsideUrban: true } : {}),
+      intersections,
+    }
+  })
 
   return {
     city,
     country,
     streets: streets.filter((s) => s.segments.length > 0),
-    references: buildReferences(options.references ?? [], boundary, city, options.boundaries),
+    references,
     ...(options.source ? { source: options.source } : {}),
   }
 }

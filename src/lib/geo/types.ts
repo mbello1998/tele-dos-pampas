@@ -19,8 +19,21 @@ export type Street = {
   country: Country
   segments: LatLng[][]
   intersections: Intersection[]
-  /** True when the street lies outside the city's urban boundary (rural road or outlying barrio). */
+  /**
+   * True when most of the street's vertices lie outside the polygon used to
+   * classify THIS city. The two polygons differ in kind: Quarai's is the whole
+   * municipality, Artigas' is the urban area only. So the flag means "outside
+   * the polygon used for that city", and for Quarai it can never be true. It
+   * is NOT a uniform "rural" measure: it must not drive anything the customer
+   * sees, and `zones` remains the only authority on whether an address is served.
+   */
   outsideUrban?: boolean
+  /**
+   * Only set on records split out of a name shared by distinct streets (parts
+   * more than 1 km apart): the nearest reference within 500 m, else the nearest
+   * crossing street. Lets the UI tell two "Ibirapitá" entries apart.
+   */
+  nearHint?: string
 }
 
 export type Reference = { id: string; name: string; kind: string; at: LatLng; city: City }

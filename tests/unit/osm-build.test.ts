@@ -228,3 +228,39 @@ test('a proveniência informada é gravada no dataset', () => {
   expect(buildDataset(ways, boundaries.artigas, 'artigas', { source }).source).toEqual(source)
   expect(artigas().source).toBeUndefined()
 })
+
+test('nome compartilhado por ruas distintas (> 1 km) vira dois registros com nearHint diferentes', () => {
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
+  const ibi = a.streets.filter((s) => s.name === 'Ibirapitá')
+  expect(ibi).toHaveLength(2)
+  expect(ibi[0].id).not.toBe(ibi[1].id)
+  expect(new Set(ibi.map((s) => s.id)).size).toBe(2)
+  const hints = ibi.map((s) => s.nearHint)
+  expect(hints.every((h) => typeof h === 'string' && h.length > 0)).toBe(true)
+  expect(hints[0]).not.toBe(hints[1])
+  // The hints are real reference names from this city.
+  const names = new Set(a.references.map((r) => r.name))
+  for (const h of hints) expect(names).toContain(h as string)
+})
+
+test('nearHint só existe em registros divididos; Ruta/Rodovia nunca são divididas', () => {
+  const a = buildDataset(ways, boundaries.artigas, 'artigas', { boundaries, references })
+  expect(byName(a.streets, '18 de Julio')?.nearHint).toBeUndefined()
+  expect(a.streets.filter((s) => s.name === 'Ruta 30')).toHaveLength(1)
+  // Every record with a hint belongs to a name that has more than one record.
+  for (const s of a.streets.filter((x) => x.nearHint)) {
+    expect(a.streets.filter((x) => x.name === s.name).length).toBeGreaterThan(1)
+  }
+})
+
+test('partes a menos de 1 km continuam um único registro', () => {
+  const base = ways.find((w) => w.tags?.name === 'Aparicio Saravia') as OverpassWay
+  // A copy of a real way shifted ~300 m north under the same name: still one street.
+  const shifted: OverpassWay = {
+    ...base,
+    id: 9_000_001,
+    geometry: (base.geometry ?? []).map((g) => ({ lat: g.lat + 0.0027, lon: g.lon })),
+  }
+  const d = buildDataset([...ways, shifted], boundaries.artigas, 'artigas')
+  expect(d.streets.filter((s) => s.name === 'Aparicio Saravia')).toHaveLength(1)
+})

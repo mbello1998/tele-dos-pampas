@@ -1479,6 +1479,72 @@
     "ref": "30",
     "surface": "asphalt"
    }
+  },
+  {
+   "type": "way",
+   "id": 101978430,
+   "bounds": {
+    "minlat": -30.4012333,
+    "minlon": -56.4932207,
+    "maxlat": -30.4009032,
+    "maxlon": -56.4907658
+   },
+   "geometry": [
+    {
+     "lat": -30.4011036,
+     "lon": -56.4932207
+    },
+    {
+     "lat": -30.4010393,
+     "lon": -56.4923147
+    },
+    {
+     "lat": -30.4009032,
+     "lon": -56.4908572
+    },
+    {
+     "lat": -30.4009153,
+     "lon": -56.4907954
+    },
+    {
+     "lat": -30.400978,
+     "lon": -56.4907658
+    },
+    {
+     "lat": -30.4012333,
+     "lon": -56.4907968
+    }
+   ],
+   "tags": {
+    "highway": "residential",
+    "name": "Ibirapitá",
+    "surface": "asphalt"
+   }
+  },
+  {
+   "type": "way",
+   "id": 136129708,
+   "bounds": {
+    "minlat": -30.4335409,
+    "minlon": -56.4584185,
+    "maxlat": -30.4329559,
+    "maxlon": -56.4582861
+   },
+   "geometry": [
+    {
+     "lat": -30.4335409,
+     "lon": -56.4582861
+    },
+    {
+     "lat": -30.4329559,
+     "lon": -56.4584185
+    }
+   ],
+   "tags": {
+    "alt_name": "Calle 7",
+    "highway": "residential",
+    "name": "Ibirapitá"
+   }
   }
  ]
 }
