@@ -78,12 +78,27 @@ describe('schema', () => {
 })
 
 describe('seeds', () => {
-  test('seed carrega as 7 transições de food, 5 de courier e 5 de ride', async () => {
+  test('seed carrega as transições: food 11, courier 6, ride 5 (sem linhas de admin)', async () => {
     const { rows } = await db.query<{ kind: string; n: number }>(
       `select kind::text, count(*)::int as n from status_transitions group by kind`,
     )
     const by = Object.fromEntries(rows.map((r) => [r.kind, r.n]))
-    expect(by).toEqual({ food: 7, courier: 5, ride: 5 })
+    expect(by).toEqual({ food: 11, courier: 6, ride: 5 })
+    const roles = await db.query(
+      `select allowed_role::text r, count(*)::int n from status_transitions group by 1 order by 1`,
+    )
+    expect(Object.fromEntries(roles.rows.map((r) => [r.r, r.n]))).toEqual({ client: 7, courier: 10, merchant: 5 })
+    const cancel = await db.query(
+      `select kind::text k, allowed_role::text r, from_status::text f from status_transitions
+       where to_status = 'cancelado' order by 1, 2, 3`,
+    )
+    const key = (r: { k: string; r: string; f: string }) => `${r.k}/${r.r}/${r.f}`
+    expect(cancel.rows.map(key)).toEqual([
+      'courier/client/aguardando_motoboy', 'courier/client/criado',
+      'food/client/aguardando_loja', 'food/client/criado',
+      'food/merchant/aguardando_loja', 'food/merchant/em_preparo', 'food/merchant/pronto',
+      'ride/client/criado',
+    ])
   })
 
   test('pricing_rules padrão tem base 10.00, included_km 2.0, per_km 2.50, min 10.00', async () => {
@@ -105,8 +120,8 @@ describe('seeds', () => {
   test('settings e dois merchants de exemplo (trailer em Quaraí, restaurante em Artigas)', async () => {
     const m = await db.query(`select kind::text, city, country from merchants order by country`)
     expect(m.rows).toEqual([
-      { kind: 'trailer', city: 'Quaraí', country: 'BR' },
-      { kind: 'restaurante', city: 'Artigas', country: 'UY' },
+      { kind: 'trailer', city: 'quarai', country: 'BR' },
+      { kind: 'restaurante', city: 'artigas', country: 'UY' },
     ])
     const s = await db.query(`select count(*)::int as n from settings`)
     expect(s.rows[0].n).toBeGreaterThan(0)
@@ -118,19 +133,19 @@ describe('seeds', () => {
       db.query(
         `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
            night_surcharge_brl, night_from, night_to, cross_border_fee_brl, passenger_cross_border_fee_brl, valid_from)
-         values ('Quaraí', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date)`,
+         values ('quarai', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date)`,
       ),
     ).rejects.toMatchObject({ code: '23P01' })
     await db.query('rollback to savepoint sp')
 
     // a new version that starts after the old one is closed is allowed
     await db.query(
-      `update pricing_rules set valid_to = current_date + 10 where city = 'Quaraí' and kind = 'food' and valid_to is null`,
+      `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'food' and valid_to is null`,
     )
     await db.query(
       `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
          night_surcharge_brl, night_from, night_to, cross_border_fee_brl, passenger_cross_border_fee_brl, valid_from)
-       values ('Quaraí', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date + 10)`,
+       values ('quarai', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date + 10)`,
     )
   })
 
@@ -144,5 +159,38 @@ describe('seeds', () => {
       `select 1 from pg_indexes where tablename='orders' and indexdef ilike '%unique%(code)%'`,
     )
     expect(u.rows.length).toBe(1)
+  })
+
+  test('toda coluna de cidade só aceita os slugs quarai/artigas', async () => {
+    const cols = await db.query<{ table_name: string; column_name: string }>(
+      `select table_name, column_name from information_schema.columns
+       where table_schema = 'public' and column_name in ('city', 'home_city', 'base_city')`,
+    )
+    expect(cols.rows.length).toBe(7)
+    for (const c of cols.rows) {
+      const def = await db.query(
+        `select pg_get_constraintdef(con.oid) d from pg_constraint con
+         join pg_class cl on cl.oid = con.conrelid
+         join pg_attribute a on a.attrelid = cl.oid and a.attnum = any (con.conkey)
+         where con.contype = 'c' and cl.relname = $1 and a.attname = $2`,
+        [c.table_name, c.column_name],
+      )
+      const text = def.rows.map((r) => r.d).join(' ')
+      expect(text, `${c.table_name}.${c.column_name}`).toMatch(/'quarai'.*'artigas'/)
+      expect(text).not.toMatch(/Quaraí|Artigas/)
+    }
+    // behavioural check on two tables
+    await db.query('savepoint sp')
+    await expect(
+      db.query(`insert into merchants (name, kind, city, country) values ('x', 'loja', 'Quaraí', 'BR')`),
+    ).rejects.toMatchObject({ code: '23514' })
+    await db.query('rollback to savepoint sp')
+    await db.query(`insert into merchants (name, kind, city, country) values ('x', 'loja', 'quarai', 'BR')`)
+    await expect(
+      db.query(
+        `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from)
+         values ('Quaraí', 'ride', 1, 1, 1, 1, '2030-01-01')`,
+      ),
+    ).rejects.toMatchObject({ code: '23514' })
   })
 })

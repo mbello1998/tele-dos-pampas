@@ -1,22 +1,29 @@
 -- Idempotent seed: safe to run on every `npm run db:migrate`.
 
--- Status transitions (spec section 8). One row per forward step plus one cancel row per kind.
+-- Status transitions (spec section 8): forward steps plus the enumerated cancellations.
 insert into public.status_transitions (kind, from_status, to_status, allowed_role) values
-  -- food: 6 forward steps + cancel
+  -- food: 6 forward steps + cancellations
   ('food', 'criado', 'aguardando_loja', 'client'),
   ('food', 'aguardando_loja', 'em_preparo', 'merchant'),
   ('food', 'em_preparo', 'pronto', 'merchant'),
   ('food', 'pronto', 'coletado', 'courier'),
   ('food', 'coletado', 'em_rota', 'courier'),
   ('food', 'em_rota', 'entregue', 'courier'),
+  -- client may cancel only before the kitchen/courier starts; merchant may cancel up to pronto.
+  -- Admin is deliberately NOT here (see comment on status_transitions).
   ('food', 'criado', 'cancelado', 'client'),
-  -- courier: 4 forward steps + cancel
+  ('food', 'aguardando_loja', 'cancelado', 'client'),
+  ('food', 'aguardando_loja', 'cancelado', 'merchant'),
+  ('food', 'em_preparo', 'cancelado', 'merchant'),
+  ('food', 'pronto', 'cancelado', 'merchant'),
+  -- courier: 4 forward steps + cancellations
   ('courier', 'criado', 'aguardando_motoboy', 'client'),
   ('courier', 'aguardando_motoboy', 'aceito', 'courier'),
   ('courier', 'aceito', 'coletado', 'courier'),
   ('courier', 'coletado', 'entregue', 'courier'),
   ('courier', 'criado', 'cancelado', 'client'),
-  -- ride: 4 forward steps + cancel
+  ('courier', 'aguardando_motoboy', 'cancelado', 'client'),
+  -- ride: 4 forward steps + cancellation
   ('ride', 'criado', 'aceito', 'courier'),
   ('ride', 'aceito', 'motoboy_chegou', 'courier'),
   ('ride', 'motoboy_chegou', 'em_viagem', 'courier'),
@@ -31,13 +38,15 @@ insert into public.pricing_rules (
   valid_from
 )
 select c.city, k.kind, 10.00, 2.0, 2.50, 10.00, 3.00, '23:00', '05:00', 8.00, 12.00, date '2026-01-01'
-from (values ('Quaraí'), ('Artigas')) as c (city)
+from (values ('quarai'), ('artigas')) as c (city)
 cross join (values ('food'::public.order_kind), ('courier'), ('ride')) as k (kind)
 where not exists (
   select 1 from public.pricing_rules p where p.city = c.city and p.kind = k.kind
 );
 
--- Settings (public keys are readable by anonymous visitors once RLS policies exist).
+-- Settings. service_radius_km (3) and bridge_hours (06:00-22:00) are UNCONFIRMED PLACEHOLDERS
+-- pending the owner's confirmation of the real values.
+-- (public keys are readable by anonymous visitors once RLS policies exist).
 insert into public.settings (key, value, is_public) values
   ('service_radius_km', '3', true),
   ('bridge_hours', '{"opens": "06:00", "closes": "22:00"}', true),
@@ -50,8 +59,8 @@ insert into public.merchants (
   id, name, kind, city, country, address_text, lat, lng, prep_time_min,
   commission_pct, accepts_cross_border, status
 ) values
-  ('00000000-0000-4000-8000-000000000001', 'Trailer do Zé (exemplo)', 'trailer', 'Quaraí', 'BR',
+  ('00000000-0000-4000-8000-000000000001', 'Trailer do Zé (exemplo)', 'trailer', 'quarai', 'BR',
    'Praça central, Quaraí', -30.387500, -56.452800, 15, 10.00, true, 'approved'),
-  ('00000000-0000-4000-8000-000000000002', 'Restaurante La Frontera (ejemplo)', 'restaurante', 'Artigas', 'UY',
+  ('00000000-0000-4000-8000-000000000002', 'Restaurante La Frontera (ejemplo)', 'restaurante', 'artigas', 'UY',
    'Centro, Artigas', -30.400000, -56.470000, 25, 10.00, true, 'approved')
 on conflict (id) do nothing;
