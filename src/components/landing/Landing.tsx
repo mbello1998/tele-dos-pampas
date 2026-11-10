@@ -70,17 +70,17 @@ export function Landing({ content, locale }: { content: LandingContent; locale: 
               text={content.headline}
               className={`${display} max-w-4xl text-balance break-words text-[clamp(2.5rem,12vw,5.75rem)] font-extrabold uppercase leading-[0.92]`}
             />
-            <p className="entra mt-5 max-w-xl text-lg text-white/85" style={delay(0.7)}>
+            <p className="entra mt-5 max-w-xl text-lg text-white/85" style={delay(0.5)}>
               {content.subheadline}
             </p>
             <a
               href={content.ctaHref}
               className="entra mt-8 inline-flex min-h-12 items-center rounded-full bg-sol px-7 text-base font-bold text-noite"
-              style={delay(0.9)}
+              style={delay(0.65)}
             >
               {content.ctaLabel}
             </a>
-            <p className="entra mt-6 flex max-w-xl items-start gap-2 text-sm text-white/75" style={delay(1.1)}>
+            <p className="entra mt-6 flex max-w-xl items-start gap-2 text-sm text-white/75" style={delay(0.8)}>
               <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-rio" />
               <span>{content.hoursNotice}</span>
             </p>

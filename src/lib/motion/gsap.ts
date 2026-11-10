@@ -24,7 +24,7 @@ export function motionAllowed(): boolean {
   return typeof window !== 'undefined' && !prefersReducedMotion() && !isConstrainedNetwork()
 }
 
-let pending: Promise<Motion> | null = null
+let pending: Promise<Motion | null> | null = null
 
 /**
  * Baixa GSAP e ScrollTrigger sob demanda, uma única vez. Devolve `null`, sem baixar nada, quando
@@ -35,9 +35,15 @@ export function loadMotion(): Promise<Motion | null> {
   pending ??= Promise.all([
     import(/* webpackChunkName: "gsap" */ 'gsap'),
     import(/* webpackChunkName: "gsap-scrolltrigger" */ 'gsap/ScrollTrigger'),
-  ]).then(([{ gsap }, { ScrollTrigger }]) => {
-    gsap.registerPlugin(ScrollTrigger)
-    return { gsap, ScrollTrigger }
-  })
+  ])
+    .then(([{ gsap }, { ScrollTrigger }]): Motion | null => {
+      gsap.registerPlugin(ScrollTrigger)
+      return { gsap, ScrollTrigger }
+    })
+    .catch(() => {
+      // Rede caiu no meio do carregamento do chunk: sem movimento, o conteúdo segue intacto.
+      pending = null
+      return null
+    })
   return pending
 }
