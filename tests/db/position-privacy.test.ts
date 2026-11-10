@@ -94,7 +94,8 @@ type Case = {
   label: string
   /** 'deny': o ponto do teste é uma NEGATIVA (alguém NÃO vê algo). */
   kind: 'permit' | 'deny'
-  setup?: string
+  /** SQL de preparo; recebe o alvo para que mudanças nas próprias posições valham na cópia temporária também. */
+  setup?: string | ((target: string) => string)
   who: Who
   /** Rótulos (LABELS) que a leitura deve devolver, exatamente, entre as posições dos três motoboys. */
   expect: string[]
@@ -102,18 +103,20 @@ type Case = {
 
 /** Uma ida ao banco: savepoint, preparo como dono, leitura como `who`, volta ao savepoint. */
 async function readLabels(target: string, c: Pick<Case, 'setup' | 'who'>): Promise<string[]> {
-  const sql = `savepoint c; reset role; ${c.setup ?? 'select 1;'} ${asSql(c.who)}
+  const sql = `savepoint c; reset role; ${typeof c.setup === 'function' ? c.setup(target) : (c.setup ?? 'select 1;')} ${asSql(c.who)}
     select lat::text as lat from ${target} where ${scope}; reset role; rollback to savepoint c;`
   let res: QueryResult | QueryResult[]
   try {
     res = await db.query(sql)
   } catch (e) {
     await db.query('rollback to savepoint c')
+    // anon não tem nem o privilégio de SELECT na tabela: "permission denied" é uma negação, não um defeito.
+    if (c.who === 'anon' && (e as { code?: string }).code === '42501') return []
     throw e
   }
   const hit = (Array.isArray(res) ? res : [res]).find((r) => r.fields?.[0]?.name === 'lat')
   if (!hit) throw new Error('a leitura não devolveu resultado')
-  return hit.rows.map((r) => LABELS[String(Number(r.lat))] ?? `?${r.lat}`).sort()
+  return hit.rows.map((r: { lat: string }) => LABELS[String(Number(r.lat))] ?? `?${r.lat}`).sort()
 }
 
 const sortedLabels = (l: string[]) => [...l].sort()
@@ -220,14 +223,14 @@ function buildCases(): Case[] {
     {
       label: 'janela da frota: posição de 14 min ainda é lida',
       kind: 'permit',
-      setup: `update public.courier_positions set recorded_at = now() - interval '14 minutes' where courier_id = '${ID.courierQ1}' and recorded_at > now() - interval '1 hour';`,
+      setup: (t) => `update ${t} set recorded_at = now() - interval '14 minutes' where courier_id = '${ID.courierQ1}' and recorded_at > now() - interval '1 hour';`,
       who: fleet1,
       expect: Q1_RECENT,
     },
     {
       label: 'NEGA: janela da frota: posição de 16 min já não é lida',
       kind: 'deny',
-      setup: `update public.courier_positions set recorded_at = now() - interval '16 minutes' where courier_id = '${ID.courierQ1}' and recorded_at > now() - interval '1 hour';`,
+      setup: (t) => `update ${t} set recorded_at = now() - interval '16 minutes' where courier_id = '${ID.courierQ1}' and recorded_at > now() - interval '1 hour';`,
       who: fleet1,
       expect: [],
     },
@@ -576,7 +579,7 @@ const MUTANTS: Record<string, Mutant> = {
     caughtBy: ['NEGA: o motoboy Q2 não lê', 'NEGA: o motoboy A1 não lê'],
   },
   'admin: a policy do admin vira "todos" (lojista e anônimo passam a ler)': {
-    policy: { courier_positions_select_admin: [{ from: /^.*$/s, to: 'true' }] },
+    policy: { courier_positions_select_admin: [{ from: /^[\s\S]*$/, to: 'true' }] },
     caughtBy: ['NEGA: o lojista', 'NEGA: anônimo', 'NEGA: motoboy com perfil pendente'],
   },
   'lojista: alguém soma uma policy que deixa o lojista do pedido ler': {
