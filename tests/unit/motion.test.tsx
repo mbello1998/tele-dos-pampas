@@ -172,6 +172,17 @@ test('a migração 0013 semeia as chaves de conteúdo como públicas e não usa 
   expect(sql).not.toMatch(/,\s*false\)/)
 })
 
+test('o aviso de horário diz 06:00 a 00:00 nos dois idiomas e nunca sugere que a ponte fecha', () => {
+  const sql = read('supabase/migrations/0013_landing_settings.sql')
+  const linha = sql.match(/\('landing_hours_notice',\s*'([^']*)'/)
+  expect(linha, 'landing_hours_notice não semeada').not.toBeNull()
+  const aviso = JSON.parse(linha![1]) as Record<string, string>
+  for (const locale of ['pt-BR', 'es-UY']) expect(aviso[locale]).toMatch(/06:00.*00:00/)
+  // A ponte é aberta 24 horas: nenhum texto semeado pode ligá-la a horário ou fechamento.
+  const copy = sql.split(/\r?\n/).filter((l) => !l.trim().startsWith('--')).join(' ')
+  expect(copy).not.toMatch(/ponte[^"]{0,40}(fecha|hor[aá]rio)|puente[^"]{0,40}(cierra|horario)/i)
+})
+
 // ---------------------------------------------------------------------------------------------
 // reduced-motion e Lenis
 // ---------------------------------------------------------------------------------------------
@@ -296,7 +307,9 @@ test('StreetGridDraw busca o dataset sob demanda e o componente não traz caminh
   const src = read('src/components/motion/StreetGridDraw.tsx')
   expect(src).toMatch(/fetch\(/)
   expect(src).toMatch(/\/data\//)
-  expect(src).toMatch(/buildMesh/)
+  expect(src).toMatch(/grid-simplified\.json/)
+  // O componente não carrega o dataset completo (600 kB), só a malha simplificada.
+  expect(src).not.toMatch(/\/data\/\$\{|quarai\.json|artigas\.json/)
   expect(src).not.toMatch(/\sd=["']M/) // nenhum <path d="M…"> literal
 
   // Nenhum import estático do JSON no código-fonte da landing: ele não pode entrar no bundle.
@@ -312,6 +325,23 @@ test('StreetGridDraw busca o dataset sob demanda e o componente não traz caminh
   expect(html).toContain('/hero/poster-malha.svg')
   expect(html).not.toMatch(/<path/)
   expect(html.length).toBeLessThan(8_000)
+})
+
+test('a malha simplificada servida à landing sai do dataset real e é uma fração dele', async () => {
+  const { buildMesh } = await import('@/lib/motion/grid-geometry')
+  const datasets = [dataset('quarai'), dataset('artigas')]
+  const servida = read('public/data/grid-simplified.json')
+  // Defasagem: se os datasets mudarem, rode scripts/landing/build-grid.ts e build-poster.ts.
+  expect(JSON.parse(servida), 'grid-simplified.json defasado em relação ao dataset').toEqual(buildMesh(datasets))
+
+  const gz = (s: string | Buffer) => gzipSync(s, { level: 9 }).length
+  const cru = gz(read('public/data/quarai.json')) + gz(read('public/data/artigas.json'))
+  expect(gz(servida), `${gz(servida)} B contra ${cru} B do dataset`).toBeLessThan(cru / 5)
+  expect(gz(servida)).toBeLessThan(15_000)
+
+  // O poster desenha a mesma malha: a primeira coordenada do caminho de Quaraí aparece nele.
+  const comeco = JSON.parse(servida).paths.quarai.slice(0, 20)
+  expect(read('public/hero/poster-malha.svg')).toContain(comeco)
 })
 
 // ---------------------------------------------------------------------------------------------

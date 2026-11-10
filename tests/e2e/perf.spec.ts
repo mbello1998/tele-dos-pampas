@@ -1,23 +1,26 @@
-// @ts-nocheck -- `@playwright/test` ainda não é dependência do projeto (ver playwright.config.ts).
 import { gzipSync } from 'node:zlib'
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 
 const ORCAMENTO = 180_000 // bytes comprimidos de JS na rota inicial
 
 /** Soma o JS que o navegador realmente recebeu, comprimido com gzip no maior nível. */
-function coletarJs(page) {
-  const arquivos = []
+type ArquivoJs = { url: string; gz: number }
+
+function coletarJs(page: Page): ArquivoJs[] {
+  const arquivos: ArquivoJs[] = []
   page.on('response', async (r) => {
     if (!/\.js(\?|$)/.test(r.url())) return
     try {
       arquivos.push({ url: r.url(), gz: gzipSync(await r.body(), { level: 9 }).length })
-    } catch {}
+    } catch {
+      // resposta sem corpo (redirecionamento, cache): não conta
+    }
   })
   return arquivos
 }
-const total = (arquivos) => arquivos.reduce((n, a) => n + a.gz, 0)
+const total = (arquivos: ArquivoJs[]) => arquivos.reduce((n, a) => n + a.gz, 0)
 
-async function rolarAteOFim(page) {
+async function rolarAteOFim(page: Page) {
   const altura = await page.evaluate(() => document.documentElement.scrollHeight)
   for (let y = 0; y <= altura; y += 300) {
     await page.evaluate((top) => window.scrollTo(0, top), y)
@@ -33,12 +36,14 @@ test.describe('orçamento de desempenho', () => {
     const js = coletarJs(page)
     await page.goto('/', { waitUntil: 'networkidle' })
     await rolarAteOFim(page) // pior caso: com movimento liberado, GSAP e ScrollTrigger já baixados
+    // Garante que este é mesmo o pior caso: com movimento liberado o GSAP foi baixado.
+    expect(js.some((a) => /gsap/.test(a.url))).toBe(true)
     expect(total(js), JSON.stringify(js)).toBeLessThan(ORCAMENTO)
   })
 
   test('nenhum script de WebGL ou three.js, e nenhum canvas na página', async ({ page }) => {
     const js = coletarJs(page)
-    const pedidos = []
+    const pedidos: string[] = []
     page.on('request', (r) => pedidos.push(r.url()))
     await page.goto('/', { waitUntil: 'networkidle' })
     await rolarAteOFim(page)

@@ -11,8 +11,9 @@
 -- PENDENTE DE CONFIRMAÇÃO DO DONO (mesmo regime do seed.sql):
 --   * support_phone vai vazio de propósito. Vazio esconde o bloco de contato na landing; preencha
 --     pelo Studio com o número real, com DDI (ex.: "+55 55 9...").
---   * landing_hours_notice repete a regra do município para lanche e passageiros (até 00:00).
---     Confirmar o texto antes de abrir ao público.
+--   * landing_hours_notice: horário CONFIRMADO pelo dono: 06:00 a 00:00, todos os dias, para comida,
+--     encomenda e corrida. É regra do município sobre o serviço. A ponte é aberta 24 horas e o texto
+--     nunca deve sugerir que ela fecha.
 --   * landing_cta_href aponta para a âncora da própria página enquanto o fluxo de pedido não existe;
 --     quando existir, troque por "/pedir" (ou o caminho real) pelo Studio.
 insert into public.settings (key, value, is_public) values
@@ -30,7 +31,7 @@ insert into public.settings (key, value, is_public) values
    '{"pt-BR": "Artigas", "es-UY": "Artigas"}',
    true),
   ('landing_hours_notice',
-   '{"pt-BR": "Lanche e moto-táxi: pedidos até a meia-noite, nas duas cidades.", "es-UY": "Comida y moto-taxi: pedidos hasta la medianoche, en las dos ciudades."}',
+   '{"pt-BR": "Atendemos todos os dias, das 06:00 às 00:00, nas duas cidades.", "es-UY": "Atendemos todos los días, de 06:00 a 00:00, en las dos ciudades."}',
    true),
   ('landing_support_label',
    '{"pt-BR": "Chamar no WhatsApp", "es-UY": "Escribinos por WhatsApp"}',

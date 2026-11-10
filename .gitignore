@@ -4,3 +4,8 @@ node_modules/
 !.env.example
 .netlify/
 *.tsbuildinfo
+
+# Saída do Playwright
+test-results/
+playwright-report/
+blob-report/

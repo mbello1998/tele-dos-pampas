@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { City, StreetDataset } from '@/lib/geo/types'
-import { buildMesh, GRID_VIEWBOX, type Mesh } from '@/lib/motion/grid-geometry'
+import { GRID_VIEWBOX, type Mesh } from '@/lib/motion/grid-geometry'
 import { loadMotion } from '@/lib/motion/gsap'
 import { presets } from '@/lib/motion/presets'
 
@@ -13,21 +12,25 @@ type Props = {
   labels: { quarai: string; artigas: string; bridge: string }
 }
 
-const CITIES: City[] = ['quarai', 'artigas']
 const DASH = 100 // pathLength dos traços: 100 = escondido, 0 = desenhado (ver presets.gridStroke)
 
-async function fetchDataset(city: City): Promise<StreetDataset> {
-  const res = await fetch(`/data/${city}.json`)
-  if (!res.ok) throw new Error(`dataset ${city}: HTTP ${res.status}`)
+/** Malha visual derivada do dataset por scripts/landing/build-grid.ts (poucos kB; o dataset cru tem 600 kB). */
+const MESH_URL = '/data/grid-simplified.json'
+
+async function fetchMesh(): Promise<Mesh> {
+  const res = await fetch(MESH_URL)
+  if (!res.ok) throw new Error(`malha: HTTP ${res.status}`)
   return res.json()
 }
 
 const hiddenStroke = { strokeDasharray: DASH, strokeDashoffset: DASH }
 
 /**
- * A malha REAL das duas cidades se desenhando: o mesmo dataset da busca de endereço
- * (public/data/*.json), buscado sob demanda quando a seção está perto de entrar na tela, e só
- * se o movimento for permitido. Antes disso, e sempre que não for, o que se vê é o poster.
+ * A malha REAL das duas cidades se desenhando. A geometria vem do mesmo dataset da busca de
+ * endereço (os datasets completos de cada cidade), reduzida em build para o que o olho vê na
+ * escala da animação (public/data/grid-simplified.json). É buscada sob demanda quando a seção
+ * está perto de entrar na tela, e só se o movimento for permitido. Antes disso, e sempre que
+ * não for, o que se vê é o poster.
  *
  * Desktop: seção fixada, desenho amarrado à rolagem. Tela pequena: o desenho toca uma vez ao entrar.
  */
@@ -45,10 +48,10 @@ export function StreetGridDraw({ posterSrc, alt, labels }: Props) {
       const motion = await loadMotion()
       if (!motion || cancelled) return // reduced-motion, economia de dados: fica o poster
       try {
-        const datasets = await Promise.all(CITIES.map(fetchDataset))
-        if (!cancelled) setMesh(buildMesh(datasets))
+        const next = await fetchMesh()
+        if (!cancelled) setMesh(next)
       } catch {
-        // Sem dataset, o poster já mostra a malha: nada a fazer.
+        // Sem a malha, o poster já mostra o desenho: nada a fazer.
       }
     }
 

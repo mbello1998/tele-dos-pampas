@@ -1,14 +1,13 @@
-// Gera o poster estático do hero (public/hero/poster-malha.svg) a partir dos datasets reais.
+// Gera o poster estático do hero (public/hero/poster-malha.svg) a partir da malha simplificada.
 //
-// Usa a MESMA função de geometria do StreetGridDraw (src/lib/motion/grid-geometry.ts), então o
+// Lê o mesmo arquivo que o StreetGridDraw baixa (public/data/grid-simplified.json), então o
 // poster e o desenho animado coincidem pixel a pixel. As cores saem de src/styles/tokens.css:
 // os hex não são redeclarados aqui.
 //
-// Rodar depois de regenerar os datasets:  npx tsx scripts/landing/build-poster.ts
+// Rodar depois de scripts/landing/build-grid.ts:  npx tsx scripts/landing/build-poster.ts
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { buildMesh, GRID_VIEWBOX } from '../../src/lib/motion/grid-geometry'
-import type { StreetDataset } from '../../src/lib/geo/types'
+import { GRID_VIEWBOX, type Mesh } from '../../src/lib/motion/grid-geometry'
 
 const root = process.cwd()
 const read = (rel: string) => readFileSync(resolve(root, rel), 'utf8')
@@ -23,9 +22,9 @@ const css = read('src/styles/tokens.css')
 const sol = token(css, 'sol')
 const rio = token(css, 'rio')
 
-const datasets = (['quarai', 'artigas'] as const).map((city) => JSON.parse(read(`public/data/${city}.json`)) as StreetDataset)
-const mesh = buildMesh(datasets)
-if (!mesh.bridge) throw new Error('nenhuma referência "bridge" nos datasets: sem ponte não há poster')
+// A malha simplificada (scripts/landing/build-grid.ts) é a fonte única do desenho e do poster.
+const mesh = JSON.parse(read('public/data/grid-simplified.json')) as Mesh
+if (!mesh.bridge) throw new Error('grid-simplified.json sem ponte: sem ponte não há poster')
 
 const { quarai, artigas } = mesh.bridge
 const svg = [
