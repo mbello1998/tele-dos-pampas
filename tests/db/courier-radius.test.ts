@@ -442,6 +442,50 @@ describe('courier_events: acesso', () => {
   })
 })
 
+describe('courier_events: o histórico não some com o motoboy', () => {
+  test('apagar um motoboy (ou o perfil dele) que tem eventos é recusado: RESTRICT, não CASCADE', async () => {
+    // X has no orders (Q1 does, and orders.courier_id would refuse the delete for an unrelated reason).
+    // It already has the event from the radius it was given in setup.
+    expect((await events(`courier_id = '${X}'`)).length).toBe(1)
+    await actAs(db, 'postgres')
+    expectRefusedLoudly(await attempt(db, `delete from public.couriers where profile_id = '${X}'`), '23503', 'delete courier')
+    expectRefusedLoudly(await attempt(db, `delete from public.profiles where id = '${X}'`), '23503', 'delete profile (cascades to courier)')
+    await actAs(db, admin) // o admin pela API tem a policy de delete em couriers: o FK ainda segura
+    expectRefusedLoudly(await attempt(db, `delete from public.couriers where profile_id = '${X}'`), '23503', 'admin delete courier')
+    expect((await events(`courier_id = '${X}'`)).length).toBe(1)
+  })
+})
+
+describe('raio efetivo: nulos', () => {
+  const eff = async (c: string) => {
+    const r = await asOwner<{ r: string | null }>(db, `select private.effective_radius_km($1) as r`, [c])
+    return r[0].r === null ? null : Number(r[0].r)
+  }
+
+  test('teto da frota nulo e preferência nula: vale o teto global', async () => {
+    // Q2 é autônomo e sem preferência; Y está na frota 1 (sem teto) e sem preferência
+    expect(await eff(ID.courierQ2)).toBe(5)
+    expect(await eff(Y)).toBe(5)
+  })
+
+  test('teto da frota nulo com preferência: vale a preferência, limitada pelo teto global', async () => {
+    await asOwner(db, `update public.couriers set work_radius_km = 3 where profile_id = '${Y}'`) // fleet 1 sem teto
+    expect(await eff(Y)).toBe(3)
+    await asOwner(db, `update public.settings set value = '2' where key = 'service_radius_km'`) // o global baixou depois
+    expect(await eff(Y)).toBe(2) // o armazenado continua 3, o efetivo é o menor
+    expect(await radiusOf(Y)).toBe('3.00')
+  })
+
+  test('teto da frota com preferência nula: vale o teto da frota', async () => {
+    await setFleetMax(ID.fleet1, 4)
+    expect(await eff(Y)).toBe(4)
+  })
+
+  test('um motoboy inexistente não tem raio efetivo (nulo, nunca um número)', async () => {
+    expect(await eff('a0000000-0000-4000-8000-0000000009ff')).toBeNull()
+  })
+})
+
 describe('raio efetivo', () => {
   test('effective_radius_km é o menor entre o raio do motoboy, o teto da frota e o teto global (nulo = sem preferência)', async () => {
     const eff = async (c: string) =>
