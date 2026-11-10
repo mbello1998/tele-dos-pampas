@@ -44,12 +44,13 @@ where not exists (
   select 1 from public.pricing_rules p where p.city = c.city and p.kind = k.kind
 );
 
--- Settings. service_radius_km (3) and bridge_hours (06:00-22:00) are UNCONFIRMED PLACEHOLDERS
--- pending the owner's confirmation of the real values.
+-- Settings. service_radius_km is 5 (the owner's ruling: Quaraí spans ~7 km, and `zones` decides whether
+-- an address is served). There is NO bridge_hours key: the bridge is open 24 hours, and the only time
+-- limit is the municipal service window (06:00-00:00), which lives in settings['service_hours'] and is
+-- written by migration 0010. Do not seed bridge_hours: this file runs on every db:migrate and would revive it.
 -- (public keys are readable by anonymous visitors once RLS policies exist).
 insert into public.settings (key, value, is_public) values
-  ('service_radius_km', '3', true),
-  ('bridge_hours', '{"opens": "06:00", "closes": "22:00"}', true),
+  ('service_radius_km', '5', true),
   ('unserved_zone_message', '{"pt-BR": "Ainda não atendemos esta região.", "es-UY": "Todavía no atendemos esta zona."}', true),
   ('landing_headline', '{"pt-BR": "Tele-entrega, moto-táxi e encomendas em Quaraí e Artigas.", "es-UY": "Delivery, moto-taxi y encomiendas en Quaraí y Artigas."}', true)
 on conflict (key) do nothing;
