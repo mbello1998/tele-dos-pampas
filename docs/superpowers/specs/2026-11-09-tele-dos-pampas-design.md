@@ -202,7 +202,7 @@ Regras são **versionadas por data**, nunca editadas no lugar. Reajuste cria nov
 **Valores padrão iniciais (editáveis no admin):**
 
 - `base_fare_brl` = 10,00 · `included_km` = 2,0 · `per_km_brl` = 2,50 · `min_fare_brl` = 10,00
-- `night_surcharge_brl` = 3,00 entre 23h e 05h
+- `night_surcharge_brl` = 3,00 entre 23h e 00h (única hora noturna dentro do expediente de 06:00–00:00)
 - `cross_border_fee_brl` = 8,00 · `passenger_cross_border_fee_brl` = 12,00
 
 Base da estimativa: referências públicas de mercado — mínimo de cerca de R$ 12,00 até 1 km e R$ 2,00/km excedente (Gollog), custo por km entre R$ 2,00 e R$ 5,00 (Melhor Envio), taxa de R$ 14,00 a R$ 15,00 em raio de 4 km (Vem Pro Juca). **Não existe tabela pública de tele-entrega de Quaraí**; o raio urbano da cidade é de aproximadamente 2 km, o que justifica a base menor. Estes números são ponto de partida e devem ser calibrados com o preço que os motoboys locais praticam hoje.
@@ -212,9 +212,9 @@ Atualização diária por cron. Se a API falhar, usa a última gravada e a inter
 
 **`settings`** — `key`, `value` (jsonb), `is_public`, `updated_by`, `updated_at`. Guarda textos da landing, banners, teto global de raio de atendimento, **`service_hours` por cidade e por tipo de serviço**, URL do provedor de tiles, avisos, telefones de suporte.
 
-**Horário de serviço, não horário da ponte.** A ponte Quaraí–Artigas é **aberta 24 horas e não tem horário de funcionamento**. O limite real é regra do município sobre o serviço: tele de lanches e de passageiros atende **até 00:00**. Portanto a travessia nunca é bloqueada por horário, e o que bloqueia pedido é `service_hours`, guardado por cidade e por `kind` — as duas cidades são municípios de países diferentes e podem divergir. A hora de abertura é configuração do admin.
+**Horário de serviço, não horário da ponte.** A ponte Quaraí–Artigas é **aberta 24 horas e não tem horário de funcionamento**. O limite real é regra do município sobre o serviço: **das 06:00 às 00:00**, confirmado pelo dono do negócio, para tele de lanches, encomenda e passageiro. Portanto a travessia nunca é bloqueada por horário, e o que bloqueia pedido é `service_hours`, guardado por cidade e por `kind` — as duas cidades são municípios de países diferentes e podem divergir, mesmo começando iguais.
 
-Consequência registrada: com o expediente encerrando à meia-noite, a janela de adicional noturno (23:00–05:00) só é alcançável entre 23:00 e 00:00. Não é defeito, é efeito da regra municipal — mas o valor e a janela merecem revisão do dono.
+Consequência sobre o adicional noturno: com expediente de 06:00 às 00:00, a janela da spec (23:00–05:00) descreve cinco horas que **não podem existir**. A janela armazenada passa a ser **23:00–00:00**, que é a única hora noturna real, mantendo o valor de R$ 3,00 para o dono ajustar. Isso é higiene de dado, não mudança de regra: o comportamento efetivo é idêntico, porque fora do expediente não há pedido.
 
 **`audit_log`** — `actor_id`, `actor_role`, `table_name`, `record_id`, `action`, `before` (jsonb), `after` (jsonb), `created_at`.
 
