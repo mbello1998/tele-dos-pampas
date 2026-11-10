@@ -1,6 +1,7 @@
 import type { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { connect } from '../../scripts/db/client'
+import { getEffectiveRate } from '../../src/lib/fx/rate'
 import { convertBrlToUyu } from '../../src/lib/money/format'
 import type { Quote, ServerQuote } from '../../src/lib/pricing/types'
 import { attempt } from './rls-helpers'
@@ -922,6 +923,67 @@ describe('conversão para pesos (spec 7, passo 6)', () => {
     }
     await db.query(`delete from public.settings where key = 'fx.fallback_rate'`)
     expect(await quote({ at })).toMatchObject({ fxRate: 7.8, totalUyu: 78 })
+  })
+
+  // Uma só resposta para "que taxa vale": a SQL e getEffectiveRate (src/lib/fx/rate.ts) têm de escolher a MESMA
+  // linha. As linhas de um teste são inseridas na mesma transação, então empatam em fetched_at: quem desempata
+  // o override manual contra a linha da API é a regra de precedência, não a ordem de gravação.
+  describe('mesma taxa que getEffectiveRate (TypeScript)', () => {
+    const both = async (at: string) => {
+      const sql = await quote({ at })
+      const ts = await getEffectiveRate(new Date(at), db)
+      return { sql, ts }
+    }
+    const agree = (sql: FullQuote, ts: Awaited<ReturnType<typeof getEffectiveRate>>) => {
+      expect(sql.fxRate).toBe(ts.rate)
+      expect(sql.fxSpreadPct).toBe(ts.spreadPct)
+      expect(sql.fxStale).toBe(ts.isStale)
+    }
+
+    test('há linha do mesmo dia: a do dia vence, mesmo existindo uma mais nova que a de ontem', async () => {
+      await insertFx('7.600000', '2099-06-09', { spread: '1' })
+      await insertFx('7.800000', '2099-06-10', { spread: '5' })
+      const { sql, ts } = await both('2099-06-10T15:00:00Z')
+      agree(sql, ts)
+      expect(sql.fxRate).toBe(7.8)
+      expect(sql.fxStale).toBe(false)
+    })
+
+    test('a taxa gravada às 06:00 vale numa cotação das 10:00 do mesmo dia (não a de ontem)', async () => {
+      await insertFx('7.700000', '2099-06-09', { spread: '2' })
+      const today = await insertFx('7.850000', '2099-06-10', { spread: '4' })
+      const { sql, ts } = await both('2099-06-10T13:00:00Z') // 10:00 locais
+      agree(sql, ts)
+      expect(sql.fxRateId).toBe(today)
+    })
+
+    test('sem linha do dia: a mais recente anterior, marcada defasada, nos dois lados', async () => {
+      await insertFx('7.700000', '2099-06-05', { spread: '0' })
+      await insertFx('7.750000', '2099-06-07', { spread: '3' })
+      const { sql, ts } = await both('2099-06-10T15:00:00Z')
+      agree(sql, ts)
+      expect(sql.fxRate).toBe(7.75)
+      expect(sql.fxStale).toBe(true)
+    })
+
+    test('manual e API no mesmo dia (empatadas em fetched_at): o override manual vence nos dois lados', async () => {
+      const api = await insertFx('7.800000', '2099-06-10', { spread: '5' })
+      const manual = await insertFx('8.200000', '2099-06-10', { spread: '2', manual: true })
+      const tie = await db.query(`select count(distinct fetched_at)::int as n from public.fx_rates where id in ($1, $2)`, [api, manual])
+      expect(tie.rows[0].n).toBe(1) // a premissa do teste: as duas empatam em fetched_at
+      const { sql, ts } = await both('2099-06-10T15:00:00Z')
+      agree(sql, ts)
+      expect(sql.fxRateId).toBe(manual)
+      expect(sql.fxRate).toBe(8.2)
+    })
+
+    test('divergência CONHECIDA e deliberada: só existe linha de data FUTURA. O TS usa a mais recente de qualquer data; a SQL nunca precifica com taxa de depois do dia cotado', async () => {
+      const future = await insertFx('9.990000', '2099-06-12', { spread: '0' })
+      const { sql, ts } = await both('2099-06-10T15:00:00Z')
+      expect(ts.rate).toBe(9.99) // getEffectiveRate: latest of any date
+      expect(sql.fxRateId).not.toBe(future) // quote_order: valid_for_date <= day only
+      expect(sql.fxStale).toBe(true)
+    })
   })
 
   test('concorda com convertBrlToUyu do TypeScript numa grade de totais, taxas e spreads', async () => {
