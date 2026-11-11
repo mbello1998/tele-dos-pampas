@@ -104,17 +104,19 @@ type RuleOverrides = Partial<{
 
 /** Fecha a versão em vigor da (cidade, kind) em `from` e insere a nova a partir dessa data. Nunca edita preço. */
 async function newRule(city: string, kind: string, o: RuleOverrides = {}, from = '2099-01-01'): Promise<string> {
+  // delivery é cotado na tarifa de convênio (merchant); todo o resto, na de balcão (client). Cada uma tem a sua vigência.
+  const audience = kind === 'delivery' ? 'merchant' : 'client'
   await db.query(
-    `update public.pricing_rules set valid_to = $3::date where city = $1 and kind = $2::public.order_kind and valid_to is null`,
-    [city, kind, from],
+    `update public.pricing_rules set valid_to = $3::date where city = $1 and kind = $2::public.order_kind and audience = $4 and valid_to is null`,
+    [city, kind, from, audience],
   )
   const r = await db.query<{ id: string }>(
-    `insert into public.pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
+    `insert into public.pricing_rules (city, kind, audience, base_fare_brl, included_km, per_km_brl, min_fare_brl,
        night_surcharge_brl, night_from, night_to, cross_border_fee_brl, passenger_cross_border_fee_brl, valid_from)
-     values ($1, $2::public.order_kind, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date) returning id`,
+     values ($1, $2::public.order_kind, $13, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date) returning id`,
     [
       city, kind, o.base ?? 10, o.includedKm ?? 2, o.perKm ?? 2.5, o.minFare ?? 10, o.night ?? 3,
-      o.nightFrom ?? '23:00', o.nightTo ?? '05:00', o.crossBorder ?? 8, o.passengerCrossBorder ?? 12, from,
+      o.nightFrom ?? '23:00', o.nightTo ?? '05:00', o.crossBorder ?? 8, o.passengerCrossBorder ?? 12, from, audience,
     ],
   )
   return r.rows[0].id
@@ -154,36 +156,9 @@ async function merchant(o: { city?: string; country?: string; commission?: numbe
   )
   return r.rows[0].id
 }
-const item = async (m: string, name: string, price: number, available = true) =>
-  (await db.query<{ id: string }>(
-    `insert into public.catalog_items (merchant_id, name, price_brl, is_available) values ($1, $2, $3, $4) returning id`,
-    [m, name, price, available],
-  )).rows[0].id
-const group = async (it: string, name: string, min: number, max: number, required = false) =>
-  (await db.query<{ id: string }>(
-    `insert into public.item_option_groups (item_id, name, min_select, max_select, is_required) values ($1, $2, $3, $4, $5) returning id`,
-    [it, name, min, max, required],
-  )).rows[0].id
-const option = async (g: string, name: string, delta: number, available = true) =>
-  (await db.query<{ id: string }>(
-    `insert into public.item_options (group_id, name, price_delta_brl, is_available) values ($1, $2, $3, $4) returning id`,
-    [g, name, delta, available],
-  )).rows[0].id
-
-/** Loja de 12,5% com um hambúrguer (grupo obrigatório + extras) e uma bebida. Devolve ids. */
-async function shop(commission = 12.5) {
-  const m = await merchant({ commission })
-  const burger = await item(m, 'Hambúrguer', 25.9)
-  // min_select 0 + is_required true: só a flag is_required torna o grupo obrigatório (um min_select 1 a esconderia)
-  const size = await group(burger, 'Tamanho', 0, 1, true)
-  const small = await option(size, 'Pequeno', 0)
-  const large = await option(size, 'Grande', 4.1)
-  const extras = await group(burger, 'Extras', 0, 2)
-  const bacon = await option(extras, 'Bacon', 3)
-  const cheese = await option(extras, 'Queijo', 2.5)
-  const egg = await option(extras, 'Ovo', 1.5)
-  const soda = await item(m, 'Refrigerante', 8)
-  return { m, burger, soda, small, large, bacon, cheese, egg, size, extras }
+/** Uma loja de Quaraí (entrega não tem itens: o preço é só a taxa). */
+async function shop() {
+  return { m: await merchant() }
 }
 
 // ===========================================================================================================
@@ -262,8 +237,7 @@ describe('adicional noturno', () => {
     for (const [p, d] of [[Q1, Q2], [A1, A2]] as const) {
       for (const kind of ['delivery', 'courier', 'ride'] as const) {
         const m = kind === 'delivery' ? await merchant({ city: p.city, country: p.country, lat: p.lat, lng: p.lng }) : null
-        const items = kind === 'delivery' ? [{ itemId: await item(m!, 'x', 1), qty: 1 }] : undefined
-        const q = await quote({ kind, pickup: p, dropoff: d, at: NIGHT, merchant: m, items })
+        const q = await quote({ kind, pickup: p, dropoff: d, at: NIGHT, merchant: m })
         expect(line(q, 'night_surcharge')?.amountBrl, `${p.city}/${kind}`).toBe(3)
       }
     }
@@ -502,8 +476,8 @@ describe('horário de serviço (06:00 a 00:00), nunca a fronteira', () => {
         expect(q.breakdown).toEqual([])
       }
     }
-    const { m, burger, small } = await shop()
-    const delivery = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: burger, qty: 1, optionIds: [small] }], at: CLOSED })
+    const { m } = await shop()
+    const delivery = await quote({ kind: 'delivery', merchant: m, at: CLOSED })
     expect(delivery.blocked).toBe(true)
     expect(delivery.blockedCode).toBe('outside_service_hours')
   })
@@ -555,228 +529,89 @@ describe('horário de serviço (06:00 a 00:00), nunca a fronteira', () => {
 })
 
 // ===========================================================================================================
-describe('delivery: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
-  test('subtotal com opções e quantidade, calculado no banco, e a comissão fora do total', async () => {
-    const s = await shop(12.5)
-    const q = await quote({
-      kind: 'delivery', merchant: s.m, distance: 1500,
-      items: [
-        { itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon, s.cheese] }, // (25.90 + 4.10 + 3.00 + 2.50) × 2 = 71.00
-        { itemId: s.soda, qty: 3 }, // 24.00
-      ],
-    })
-    expect(q.blocked).toBe(false)
-    expect(line(q, 'items_subtotal')).toEqual({ key: 'items_subtotal', labelKey: 'pricing.items_subtotal', amountBrl: 95 })
-    expect(line(q, 'base')?.amountBrl).toBe(10)
-    expect(q.totalBrl).toBe(105)
-    expect(sumCents(q)).toBe(10_500)
-    expect(q.commissionBrl).toBe(11.88) // 12,5% de 95.00 = 11.875, meio para cima
-  })
-
-  test('preços, totais e deltas mandados pelo cliente são ignorados', async () => {
-    const s = await shop()
-    const honest = await quote({
-      kind: 'delivery', merchant: s.m,
-      items: [{ itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon] }, { itemId: s.soda, qty: 1 }],
-    })
-    const forged = await quote({
-      kind: 'delivery', merchant: s.m,
-      items: [
-        {
-          itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon],
-          price: 0.01, priceBrl: 0.01, price_brl: 0.01, unitPrice: 0.01, unitPriceBrl: 0.01, lineTotal: 0.01,
-          total: 0.01, totalBrl: 0.01, priceDelta: -50, price_delta_brl: -50, commission: 0, name: 'grátis',
-        },
-        { itemId: s.soda, qty: 1, price: 0, priceBrl: 0, unitPriceBrl: 0 },
-      ],
-    })
-    expect(forged.totalBrl).toBe(honest.totalBrl)
-    expect(line(forged, 'items_subtotal')?.amountBrl).toBe(line(honest, 'items_subtotal')?.amountBrl)
-    expect(line(forged, 'items_subtotal')?.amountBrl).toBe(74)
-    expect(forged.commissionBrl).toBe(honest.commissionBrl)
-  })
-
-  test('o preço vem do cardápio de AGORA: mudar o preço do item muda a cotação seguinte', async () => {
-    const s = await shop()
-    const items = [{ itemId: s.soda, qty: 1 }]
-    expect(line(await quote({ kind: 'delivery', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(8)
-    await db.query(`update public.catalog_items set price_brl = 9.5 where id = $1`, [s.soda])
-    expect(line(await quote({ kind: 'delivery', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(9.5)
-  })
-
+describe('delivery: pedido da loja, sem itens, na tarifa de convênio (0031)', () => {
   test('a loja decide a origem: cidade, país e regra vêm do banco, não do pickup que o cliente mandou', async () => {
     const m = await merchant({ city: 'quarai', country: 'BR' })
-    const soda = await item(m, 'x', 1)
     const rule = await newRule('quarai', 'delivery', { base: 20, minFare: 20, crossBorder: 8 })
     // o cliente jura que a coleta é em Artigas/UY; o pedido é da loja de Quaraí/BR
-    const q = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: A1, dropoff: Q2 })
+    const q = await quote({ kind: 'delivery', merchant: m, pickup: A1, dropoff: Q2 })
     expect(q.pricingRuleId).toBe(rule)
     expect(q.crossesBorder).toBe(false)
     expect(line(q, 'base')?.amountBrl).toBe(20)
     // e cruza de verdade quando o destino está em outro país que o da LOJA
-    const across = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: Q1, dropoff: A1 })
+    const across = await quote({ kind: 'delivery', merchant: m, pickup: Q1, dropoff: A1 })
     expect(across.crossesBorder).toBe(true)
     expect(line(across, 'cross_border_fee')?.amountBrl).toBe(8)
   })
 
-  test('item indisponível (ou opção indisponível) bloqueia dizendo qual', async () => {
+  test('delivery exige loja e não aceita itens; courier e ride não aceitam loja nem itens', async () => {
     const s = await shop()
-    await db.query(`update public.catalog_items set is_available = false where id = $1`, [s.soda])
-    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
-    expect(q.blocked).toBe(true)
-    expect(q.blockedCode).toBe('item_unavailable')
-    expect(q.blockedReason).toContain('Refrigerante')
-    await db.query(`update public.catalog_items set is_available = true where id = $1`, [s.soda])
-    await db.query(`update public.item_options set is_available = false where id = $1`, [s.bacon])
-    const o = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon] }] })
-    expect(o.blocked).toBe(true)
-    expect(o.blockedReason).toContain('Bacon')
-  })
-
-  test('entrada de itens inválida levanta 22023: item de outra loja, item ou opção inexistente, opção de outro item', async () => {
-    const s = await shop()
-    const other = await merchant()
-    const foreign = await item(other, 'De outra loja', 1)
-    const bad = async (items: unknown, label: string) => {
-      const r = await refused({ kind: 'delivery', merchant: s.m, items })
-      expect(r.code, label).toBe('22023')
-    }
-    await bad([{ itemId: foreign, qty: 1 }], 'item de outra loja')
-    await bad([{ itemId: '00000000-0000-4000-8000-0000000000ff', qty: 1 }], 'item inexistente')
-    await bad([{ itemId: s.burger, qty: 1, optionIds: [s.small, '00000000-0000-4000-8000-0000000000fe'] }], 'opção inexistente')
-    const g = await group(s.soda, 'g', 0, 1)
-    const sodaOpt = await option(g, 'o', 1)
-    await bad([{ itemId: s.burger, qty: 1, optionIds: [s.small, sodaOpt] }], 'opção de outro item')
-    await bad([{ itemId: 'não-é-uuid', qty: 1 }], 'uuid inválido')
-  })
-
-  test('quantidade inválida ou fora do limite levanta 22023', async () => {
-    const s = await shop()
-    for (const qty of [0, -1, 1.5, '2', null, 100]) {
-      const r = await refused({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty }] })
-      expect(r.code, `qty ${JSON.stringify(qty)}`).toBe('22023')
-    }
-    expect((await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 99 }] })).blocked).toBe(false)
-  })
-
-  test('as regras do grupo valem: obrigatório, máximo, mínimo e opção repetida (delta negativo repetido baixaria o preço)', async () => {
-    const s = await shop()
-    const bad = async (optionIds: string[], label: string) => {
-      const r = await refused({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds }] })
-      expect(r.code, label).toBe('22023')
-    }
-    await bad([], 'grupo obrigatório sem escolha')
-    await bad([s.bacon], 'grupo obrigatório sem escolha (só extra)')
-    await bad([s.small, s.large], 'duas no grupo de máximo 1')
-    await bad([s.small, s.bacon, s.cheese, s.egg], 'três no grupo de máximo 2')
-    await bad([s.small, s.small], 'opção repetida')
-    await bad([s.small, s.bacon, s.bacon], 'extra repetido')
-    expect((await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon, s.cheese] }] })).blocked).toBe(false)
-    // mínimo > 0 em grupo não obrigatório
-    const m = await merchant()
-    const it = await item(m, 'combo', 10)
-    const g = await group(it, 'molhos', 2, 3, false)
-    const o1 = await option(g, 'a', 0)
-    await option(g, 'b', 0)
-    const r = await refused({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o1] }] })
-    expect(r.code).toBe('22023')
-  })
-
-  test('preço unitário negativo (opção com desconto maior que o item) levanta', async () => {
-    const m = await merchant()
-    const it = await item(m, 'barato', 5)
-    const g = await group(it, 'g', 0, 1)
-    const o = await option(g, 'desconto', -10)
-    expect((await refused({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o] }] })).code).toBe('22023')
-    const ok = await option(g, 'desconto menor', -2)
-    // opção da mesma lista: só uma por vez porque o grupo é máx. 1
-    const q = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 2, optionIds: [ok] }] })
-    expect(line(q, 'items_subtotal')?.amountBrl).toBe(6)
-  })
-
-  test('delivery exige loja e pelo menos um item; courier e ride não aceitam loja nem itens', async () => {
-    const s = await shop()
-    expect((await refused({ kind: 'delivery', merchant: null, items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
-    expect((await refused({ kind: 'delivery', merchant: '00000000-0000-4000-8000-0000000000fd', items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
-    for (const items of [null, [], {}, 'x', 5]) {
+    expect((await refused({ kind: 'delivery', merchant: null })).code).toBe('22023')
+    expect((await refused({ kind: 'delivery', merchant: '00000000-0000-4000-8000-0000000000fd' })).code).toBe('22023')
+    for (const items of [{}, 'x', 5, [{ itemId: '00000000-0000-4000-8000-0000000000fd', qty: 1 }]]) {
       expect((await refused({ kind: 'delivery', merchant: s.m, items })).code, JSON.stringify(items)).toBe('22023')
     }
+    expect((await quote({ kind: 'delivery', merchant: s.m, items: [] })).blocked).toBe(false) // lista vazia é o mesmo que nenhuma
     for (const kind of ['courier', 'ride'] as const) {
       expect((await refused({ kind, merchant: s.m })).code, `${kind} com loja`).toBe('22023')
-      expect((await refused({ kind, items: [{ itemId: s.soda, qty: 1 }] })).code, `${kind} com itens`).toBe('22023')
-      expect((await quote({ kind, items: [] })).blocked).toBe(false) // lista vazia é o mesmo que nenhuma
-      expect((await quote({ kind })).commissionBrl).toBe(0)
+      expect((await refused({ kind, items: [{ itemId: '00000000-0000-4000-8000-0000000000fd', qty: 1 }] })).code, `${kind} com itens`).toBe('22023')
+      expect((await quote({ kind, items: [] })).blocked).toBe(false)
     }
   })
 
-  test('courier e ride têm comissão zero e nenhuma linha de itens', async () => {
-    const q = await quote({ kind: 'ride', pickup: Q1, dropoff: A1 })
-    expect(q.commissionBrl).toBe(0)
-    expect(line(q, 'items_subtotal')).toBeUndefined()
+  test('uma loja sem coordenada guardada não tem de onde coletar: recusa em vez de cotar', async () => {
+    const m = await merchant()
+    await db.query(`update public.merchants set lat = null, lng = null where id = $1`, [m])
+    expect((await refused({ kind: 'delivery', merchant: m })).code).toBe('22023')
+  })
+
+  test('duas tarifas: a loja paga o convênio e o balcão paga mais, pela mesma corrida; cada uma tem a sua vigência', async () => {
+    const m = await merchant()
+    const first = await newRule('quarai', 'delivery', { base: 9, minFare: 9 }) // fecha só o convênio, em 2099-01-01
+    const agreement = await newRule('quarai', 'delivery', { base: 8, minFare: 8 }, '2099-06-01')
+    const shopQuote = await quote({ kind: 'delivery', merchant: m, pickup: Q1, dropoff: Q2, at: NOON })
+    expect(shopQuote.audience).toBe('merchant')
+    expect(shopQuote.totalBrl).toBe(8)
+    expect(shopQuote.pricingRuleId).toBe(agreement)
+    expect(first).not.toBe(agreement)
+    const courier = await quote({ kind: 'courier', pickup: Q1, dropoff: Q2, at: NOON })
+    expect(courier.audience).toBe('client')
+    expect(courier.totalBrl).toBe(10)
   })
 
   test('uma tabela temporária de mesmo nome não muda o preço: nada depende do search_path de quem chama', async () => {
     const s = await shop()
-    await db.query(`create temp table catalog_items (like public.catalog_items including all)`)
-    await db.query(`insert into pg_temp.catalog_items select * from public.catalog_items where id = $1`, [s.soda])
-    await db.query(`update pg_temp.catalog_items set price_brl = 0.01`)
+    const honest = await quote({ kind: 'delivery', merchant: s.m })
     await db.query(`create temp table merchants (like public.merchants including all)`)
     await db.query(`insert into pg_temp.merchants select * from public.merchants where id = $1`, [s.m])
-    await db.query(`update pg_temp.merchants set commission_pct = 0`)
-    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
-    expect(line(q, 'items_subtotal')?.amountBrl).toBe(8)
-    expect(q.commissionBrl).toBe(1) // 12,5% de 8.00
+    await db.query(`update pg_temp.merchants set lat = null, lng = null, city = 'artigas', country = 'UY'`)
+    const q = await quote({ kind: 'delivery', merchant: s.m })
+    expect(q.totalBrl).toBe(honest.totalBrl)
+    expect(q.crossesBorder).toBe(honest.crossesBorder)
   })
 })
 
 // ===========================================================================================================
-describe('a comissão nunca aparece no breakdown (migration 0019)', () => {
+describe('não há comissão em lugar nenhum da cotação (0019, 0031)', () => {
   const COMMISSION_LIKE = /commission|comiss/i
 
-  test('nenhuma chave nem rótulo do breakdown casa com commission/comiss, em nenhum cenário; a CHECK do pedido o aceitaria', async () => {
-    const s = await shop(10)
-    await zone({ city: 'quarai', polygon: square(Q2), surcharge: 1 })
-    const scenarios: Args[] = [
-      { kind: 'courier' },
-      { kind: 'ride', pickup: Q1, dropoff: A1, at: NIGHT, distance: 7777 },
-      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon] }], at: NIGHT },
-      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }], pickup: Q1, dropoff: A1 },
+  test('nenhuma chave nem rótulo do breakdown casa com commission/comiss, e a cotação não tem o campo; a CHECK do pedido a aceitaria', async () => {
+    const s = await shop()
+    await zone({ city: 'quarai', polygon: square(Q2), surcharge: 2 })
+    const cases: Args[] = [
+      { kind: 'delivery', merchant: s.m, at: NIGHT },
+      { kind: 'delivery', merchant: s.m, pickup: Q1, dropoff: A1 },
+      { kind: 'courier', pickup: Q1, dropoff: A1, at: NIGHT },
+      { kind: 'ride', distance: 9000 },
     ]
-    for (const a of scenarios) {
+    for (const a of cases) {
       const q = await quote(a)
-      expect(q.breakdown.length).toBeGreaterThan(0)
-      for (const l of q.breakdown) {
-        expect(l.key).not.toMatch(COMMISSION_LIKE)
-        expect(l.labelKey).not.toMatch(COMMISSION_LIKE)
-        expect(Object.keys(l).sort()).toEqual(['amountBrl', 'key', 'labelKey'])
-      }
-      expect(JSON.stringify(q.breakdown)).not.toMatch(COMMISSION_LIKE)
+      expect(q.blocked).toBe(false)
+      expect(JSON.stringify(q)).not.toMatch(COMMISSION_LIKE)
       // a mesma regex da CHECK orders_breakdown_no_commission, aplicada pelo banco ao texto do breakdown
       const ok = await db.query(`select not (($1::jsonb)::text ~* '(commission|comiss)') as ok`, [JSON.stringify(q.breakdown)])
-      expect(ok.rows[0].ok).toBe(true)
+      expect(ok.rows[0].ok, JSON.stringify(a)).toBe(true)
     }
-  })
-
-  test('a comissão existe, em campo próprio fora do breakdown, e só em delivery; e a regra é a intenção, não só a regex', async () => {
-    const s = await shop(10)
-    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 5 }] }) // 40.00
-    expect(q.commissionBrl).toBe(4)
-    // O objeto inteiro CONTÉM a palavra (fora do breakdown): a ausência no breakdown não é por acaso.
-    expect(JSON.stringify(q)).toMatch(COMMISSION_LIKE)
-    expect(JSON.stringify(q.breakdown)).not.toMatch(COMMISSION_LIKE)
-    // nenhuma linha do breakdown carrega o valor da comissão sob outro nome, nem a taxa efetiva
-    expect(q.breakdown.map((l) => l.key).sort()).toEqual(['base', 'items_subtotal'])
-    expect(q.breakdown.some((l) => l.amountBrl === 4)).toBe(false)
-    expect(q.totalBrl).toBe(50) // a comissão sai do lojista, não entra na conta do cliente
-  })
-
-  test('arredondamento da comissão: 33.33 a 12,5% = 4.16625 -> 4.17; taxa zero -> 0', async () => {
-    const m = await merchant({ commission: 12.5 })
-    const it = await item(m, 'x', 33.33)
-    expect((await quote({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1 }] })).commissionBrl).toBe(4.17)
-    const free = await merchant({ commission: 0 })
-    const it2 = await item(free, 'y', 33.33)
-    expect((await quote({ kind: 'delivery', merchant: free, items: [{ itemId: it2, qty: 1 }] })).commissionBrl).toBe(0)
   })
 })
 
@@ -789,8 +624,8 @@ describe('contrato do breakdown', () => {
       { kind: 'courier', distance: 4000 },
       { kind: 'courier', pickup: Q1, dropoff: A1, distance: 5333, at: NIGHT },
       { kind: 'ride', pickup: A1, dropoff: Q1, distance: 7777 },
-      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 3, optionIds: [s.large, s.egg] }], distance: 3456, at: NIGHT },
-      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 7 }], pickup: Q1, dropoff: A1, distance: 9999 },
+      { kind: 'delivery', merchant: s.m, distance: 3456, at: NIGHT },
+      { kind: 'delivery', merchant: s.m, pickup: Q1, dropoff: A1, distance: 9999 },
     ]
   }
 
@@ -812,18 +647,15 @@ describe('contrato do breakdown', () => {
     }
   })
 
-  test('as linhas de entrega usam as chaves que a view fleet_orders soma; só os itens ficam de fora', async () => {
+  test('as linhas de entrega usam as chaves que a view fleet_orders soma', async () => {
     await zone({ city: 'quarai', polygon: square(Q2), surcharge: 2 })
     const keysRow = await db.query<{ keys: string[] }>(`select private.delivery_fee_keys() as keys`)
     const delivery = keysRow.rows[0].keys
     for (const a of await scenarios()) {
       const q = await quote(a)
-      const items = line(q, 'items_subtotal')?.amountBrl ?? 0
-      for (const l of q.breakdown) {
-        if (l.key !== 'items_subtotal') expect(delivery, `${l.key} precisa estar em private.delivery_fee_keys()`).toContain(l.key)
-      }
+      for (const l of q.breakdown) expect(delivery, `${l.key} precisa estar em private.delivery_fee_keys()`).toContain(l.key)
       const fee = await db.query<{ fee: string }>(`select private.delivery_fee_brl($1::jsonb) as fee`, [JSON.stringify(q.breakdown)])
-      expect(cents(Number(fee.rows[0].fee))).toBe(cents(q.totalBrl - items))
+      expect(cents(Number(fee.rows[0].fee))).toBe(cents(q.totalBrl))
     }
     // inclui a linha de piso (key base) e a de passageiro
     await newRule('quarai', 'ride', { base: 4, minFare: 10 })
@@ -838,7 +670,7 @@ describe('contrato do breakdown', () => {
       'breakdown', 'totalBrl', 'pricingRuleId', 'distanceM', 'routeSource', 'crossesBorder', 'blocked', 'blockedReason',
     ]
     const extraKeys: (keyof Extra)[] = [
-      'blockedCode', 'commissionBrl', 'fxRateId', 'fxRate', 'fxSpreadPct', 'fxRateUsed', 'fxStale', 'totalUyu',
+      'blockedCode', 'audience', 'fxRateId', 'fxRate', 'fxSpreadPct', 'fxRateUsed', 'fxStale', 'totalUyu',
     ]
     expect(Object.keys(q).sort()).toEqual([...quoteKeys, ...extraKeys].sort())
     expect(typeof q.totalBrl).toBe('number')
@@ -853,7 +685,6 @@ describe('contrato do breakdown', () => {
     expect(Object.keys(q).sort()).toEqual(Object.keys(await quote()).sort())
     expect(q.fxRateId).toBeNull()
     expect(q.totalUyu).toBeNull()
-    expect(q.commissionBrl).toBe(0)
     expect(q.distanceM).toBe(1500)
   })
 })
@@ -1012,12 +843,12 @@ describe('conversão para pesos (spec 7, passo 6)', () => {
     expect(q.totalUyu).toBe(convertBrlToUyu(6.25, 8.8, 0))
   })
 
-  test('delivery: o total em pesos inclui os itens', async () => {
+  test('delivery: o total em pesos é o da taxa de entrega', async () => {
     await insertFx('7.800000', '2099-06-10', { spread: '5' })
     const s = await shop()
-    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] }) // 18.00
-    expect(q.totalBrl).toBe(18)
-    expect(q.totalUyu).toBe(148) // 18 × 8.19 = 147.42 -> 148
+    const q = await quote({ kind: 'delivery', merchant: s.m })
+    expect(q.totalBrl).toBe(8) // a tarifa de convênio semeada (0031)
+    expect(q.totalUyu).toBe(66) // 8 × 8.19 = 65.52 -> 66
   })
 })
 
