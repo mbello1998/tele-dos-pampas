@@ -180,4 +180,13 @@ describe('addressToJson: sem coordenada não se cota', () => {
     expect(addressToJson({ ...row, city: 'rivera' })).toBeNull()
     expect(addressToJson({ ...row, country: 'AR' })).toBeNull()
   })
+  test('cidade e país têm de concordar: o país decide a travessia e a moeda', () => {
+    expect(addressToJson({ ...row, city: 'quarai', country: 'UY' })).toBeNull()
+    expect(addressToJson({ ...row, city: 'artigas', country: 'BR' })).toBeNull()
+    expect(addressToJson({ ...row, city: 'artigas', country: 'UY' })).not.toBeNull()
+  })
+  test('rua que não está no mapa (sem street_id) segue com o nome digitado e a coordenada', () => {
+    const livre = { ...row, street_name: 'Rua que o mapa não tem', street_id: null } as typeof row & { street_id: null }
+    expect(addressToJson(livre)).toMatchObject({ street_name: 'Rua que o mapa não tem', lat: -30.3791, lng: -56.4514 })
+  })
 })

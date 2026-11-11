@@ -594,6 +594,15 @@ describe('courier e ride', () => {
     expect(await counts(client)).toEqual(NOTHING)
   })
 
+  test('endereço sem street_id (rua que não está no mapa) é aceito e carrega o nome digitado nas duas pontas', async () => {
+    const client = await mkProfile()
+    const livre = { ...Q1, street_id: null, street_name: 'Rua que o mapa não tem', reference: 'casa verde', precision: 'gps' }
+    const out = await create({ client, kind: 'courier', pickup: livre, dropoff: { ...Q2, street_id: null, street_name: 'Outra rua fora do mapa' } })
+    const o = await orderRow(out.orderId)
+    expect(o.pickup_address).toMatchObject({ street_id: null, street_name: 'Rua que o mapa não tem', lat: Q1.lat })
+    expect(o.dropoff_address).toMatchObject({ street_name: 'Outra rua fora do mapa', lng: Q2.lng })
+  })
+
   test('uma loja mandada num pedido courier é recusada', async () => {
     const client = await mkProfile()
     const s = await shop()

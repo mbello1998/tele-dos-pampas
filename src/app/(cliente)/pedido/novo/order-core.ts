@@ -267,6 +267,10 @@ export function addressToJson(row: AddressRow): Record<string, unknown> | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
   if (row.city !== 'quarai' && row.city !== 'artigas') return null
   if (row.country !== 'BR' && row.country !== 'UY') return null
+  // a cidade decide o país (Quaraí é BR, Artigas é UY): o país decide a travessia e a moeda, então o par incoerente
+  // não segue adiante nem que o seletor de endereço tenha deixado passar (o banco também recusa, em quote_point)
+  if ((row.city === 'quarai') !== (row.country === 'BR')) return null
+  // street_name sempre segue: sem `street_id` (rua que não está no OpenStreetMap) é o único nome que o motoboy lê
   return {
     addressId: row.id,
     city: row.city,
