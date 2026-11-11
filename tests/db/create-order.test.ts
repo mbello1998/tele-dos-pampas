@@ -374,9 +374,14 @@ describe('o pedido congela o preço', () => {
 describe('o total do cliente contra o do servidor (spec 5.2.5)', () => {
   test('divergência de um centavo é aceita; de dois centavos é rejeitada, nos dois sentidos', async () => {
     const client = await mkProfile()
-    await create({ client, totalBrl: 10.01 })
-    await create({ client, totalBrl: 9.99 })
+    const high1 = await create({ client, totalBrl: 10.01 })
+    const low1 = await create({ client, totalBrl: 9.99 })
     await create({ client, totalBrl: '10.00' })
+    // o aceite tolera o centavo, mas o que se GRAVA é sempre o preço do servidor, nunca o número do cliente
+    for (const o of [high1, low1]) {
+      expect(await orderRow(o.orderId)).toMatchObject({ total_brl: '10.00', total_charged: '10.00' })
+      expect(o.totalBrl).toBe(10)
+    }
     const high = await mismatched({ client, totalBrl: 10.02 })
     const low = await mismatched({ client, totalBrl: 9.98 })
     expect(high).toMatchObject({ ok: false, code: 'price_mismatch', totalBrl: 10 })
@@ -862,8 +867,11 @@ describe('teto de sanidade da distância', () => {
     await db.query(`update public.settings set value = '6000' where key = 'orders.max_distance_m'`)
     expect((await refused({ client, distance: 6001, totalBrl: 10 })).code).toBe('TD009')
     expect((await create({ client, distance: 6000 })).ok).toBe(true)
-    await db.query(`update public.settings set value = '"abc"' where key = 'orders.max_distance_m'`)
-    expect((await refused({ client, distance: 20_001, totalBrl: 10 })).code).toBe('TD009')
+    for (const bad of ['"abc"', '0', '-5', 'null', '1.5']) {
+      await db.query(`update public.settings set value = $1::jsonb where key = 'orders.max_distance_m'`, [bad])
+      expect((await refused({ client, distance: 20_001, totalBrl: 10 })).code, bad).toBe('TD009') // cai no padrão de 20 km
+      expect((await create({ client: await mkProfile(), distance: 20_000, totalBrl: 55 })).ok, bad).toBe(true) // e não trava tudo
+    }
   })
 
   test('distância negativa é recusada', async () => {
