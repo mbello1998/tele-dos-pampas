@@ -1,5 +1,15 @@
 [build]
-  command = "npm run build"
+  # O `rm -rf` não é zelo: é o que torna a publicação possível depois de renderizar o vídeo.
+  #
+  # Renderizar com Remotion deixa 242 MB em node_modules/.cache/webpack/remotion-production-*. O empacotador da
+  # Netlify varre node_modules e leva esse cache para DENTRO da função do servidor, que então passa dos 250 MB
+  # permitidos. O deploy morre com "The function exceeds the maximum size of 250 MB", sem dizer qual função nem
+  # o que tem dentro — só medindo o pacote na mão dá para ver.
+  #
+  # `[functions] included_files` com "!" NÃO resolve: a função do servidor é gerada pelo plugin do Next e não
+  # obedece a essa exclusão (testado em 11/11/2026). Apagar antes de construir resolve, e o `next build` não
+  # recria esse diretório — quem o cria é o Remotion.
+  command = "rm -rf node_modules/.cache && npm run build"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
