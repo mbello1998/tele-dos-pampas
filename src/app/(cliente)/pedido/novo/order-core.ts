@@ -8,14 +8,16 @@
 //
 // O QUE VOLTA PARA O NAVEGADOR: `CustomerQuote`, um subconjunto escolhido campo a campo. O ServerQuote inteiro
 // carrega a comissão da loja e a taxa e o spread de câmbio, e nunca sai do servidor.
-import { fmt } from '@/lib/cart/copy'
+import { fmt } from '@/lib/pricing/copy'
 import type { Locale } from '@/lib/i18n'
 import type { RouteSource } from '@/lib/pricing/types'
 
-export type OrderKind = 'food' | 'courier' | 'ride'
+export type OrderKind = 'delivery' | 'courier' | 'ride'
 export type PaymentMethod = 'dinheiro_brl' | 'dinheiro_uyu' | 'pix'
 
-export const ORDER_KINDS: readonly OrderKind[] = ['food', 'courier', 'ride']
+export const ORDER_KINDS: readonly OrderKind[] = ['delivery', 'courier', 'ride']
+/** Os que o cliente final pede na tela de confirmação. `delivery` é da loja: tem tela própria. */
+export const CUSTOMER_KINDS: readonly OrderKind[] = ['ride', 'courier']
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ['dinheiro_brl', 'dinheiro_uyu', 'pix']
 
 export type OrderItemInput = { itemId: string; qty: number; optionIds: string[] }
@@ -25,7 +27,7 @@ export type QuoteInput = {
   kind: OrderKind
   merchantId: string | null
   items: OrderItemInput[]
-  /** courier e ride: de onde sai. Em food é ignorado (a origem é a loja, do banco). */
+  /** courier e ride: de onde sai. Em delivery é ignorado (a origem é a loja, do banco). */
   pickupAddressId: string | null
   dropoffAddressId: string
 }
@@ -105,7 +107,7 @@ export function parseQuoteInput(raw: unknown): QuoteInput | null {
   let items: OrderItemInput[] = []
   let pickupAddressId: string | null = null
 
-  if (kind === 'food') {
+  if (kind === 'delivery') {
     if (!isUuid(raw.merchantId)) return null
     merchantId = raw.merchantId
     if (!Array.isArray(raw.items) || raw.items.length === 0 || raw.items.length > MAX_ITEM_LINES) return null
@@ -178,7 +180,7 @@ export function toCustomerQuote(q: unknown): CustomerQuote {
 
 // --- as recusas, no idioma de quem pede ---------------------------------------------------------------------------
 
-// Vivem aqui (e não em src/lib/i18n) pelo mesmo motivo de src/lib/cart/copy.ts: as tabelas da camada de tradução
+// Vivem aqui (e não em src/lib/i18n) pelo mesmo motivo de src/lib/pricing/copy.ts: as tabelas da camada de tradução
 // são de outra tarefa e a paridade de chaves entre elas é testada. Quando as chaves migrarem, basta trocar o lookup.
 export const FAILURE_COPY: Record<FailureReason, Record<Locale, string>> = {
   unauthenticated: { 'pt-BR': 'Entre na sua conta para fazer o pedido.', 'es-UY': 'Ingresá a tu cuenta para hacer el pedido.' },

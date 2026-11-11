@@ -2,20 +2,20 @@
 
 -- Status transitions (spec section 8): forward steps plus the enumerated cancellations.
 insert into public.status_transitions (kind, from_status, to_status, allowed_role) values
-  -- food: 6 forward steps + cancellations
-  ('food', 'criado', 'aguardando_loja', 'client'),
-  ('food', 'aguardando_loja', 'em_preparo', 'merchant'),
-  ('food', 'em_preparo', 'pronto', 'merchant'),
-  ('food', 'pronto', 'coletado', 'courier'),
-  ('food', 'coletado', 'em_rota', 'courier'),
-  ('food', 'em_rota', 'entregue', 'courier'),
+  -- delivery: 6 forward steps + cancellations
+  ('delivery', 'criado', 'aguardando_loja', 'client'),
+  ('delivery', 'aguardando_loja', 'em_preparo', 'merchant'),
+  ('delivery', 'em_preparo', 'pronto', 'merchant'),
+  ('delivery', 'pronto', 'coletado', 'courier'),
+  ('delivery', 'coletado', 'em_rota', 'courier'),
+  ('delivery', 'em_rota', 'entregue', 'courier'),
   -- client may cancel only before the kitchen/courier starts; merchant may cancel up to pronto.
   -- Admin is deliberately NOT here (see comment on status_transitions).
-  ('food', 'criado', 'cancelado', 'client'),
-  ('food', 'aguardando_loja', 'cancelado', 'client'),
-  ('food', 'aguardando_loja', 'cancelado', 'merchant'),
-  ('food', 'em_preparo', 'cancelado', 'merchant'),
-  ('food', 'pronto', 'cancelado', 'merchant'),
+  ('delivery', 'criado', 'cancelado', 'client'),
+  ('delivery', 'aguardando_loja', 'cancelado', 'client'),
+  ('delivery', 'aguardando_loja', 'cancelado', 'merchant'),
+  ('delivery', 'em_preparo', 'cancelado', 'merchant'),
+  ('delivery', 'pronto', 'cancelado', 'merchant'),
   -- courier: 4 forward steps + cancellations
   ('courier', 'criado', 'aguardando_motoboy', 'client'),
   ('courier', 'aguardando_motoboy', 'aceito', 'courier'),
@@ -39,7 +39,7 @@ insert into public.pricing_rules (
 )
 select c.city, k.kind, 10.00, 2.0, 2.50, 10.00, 3.00, '23:00', '05:00', 8.00, 12.00, date '2026-01-01'
 from (values ('quarai'), ('artigas')) as c (city)
-cross join (values ('food'::public.order_kind), ('courier'), ('ride')) as k (kind)
+cross join (values ('delivery'::public.order_kind), ('courier'), ('ride')) as k (kind)
 where not exists (
   select 1 from public.pricing_rules p where p.city = c.city and p.kind = k.kind
 );

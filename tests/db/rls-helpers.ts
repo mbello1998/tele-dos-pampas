@@ -29,11 +29,11 @@ export const ID = {
   fleet1: f(1), fleet2: f(2),
   // orders
   oQueueQ: o(1), // client A, courier kind, aguardando_motoboy, Quarai, no courier  -> Quarai queue
-  oQueueA: o(2), // client B, food at shop2, pronto, Artigas, no courier            -> Artigas queue
+  oQueueA: o(2), // client B, delivery at shop2, pronto, Artigas, no courier            -> Artigas queue
   oTakenQ2: o(3), // client A, courier kind, aceito, courier Q2 (independent)
-  oFleet1: o(4), // client A, food at shop1, coletado, courier Q1, fleet F1
-  oShop1New: o(5), // client B, food at shop1, aguardando_loja
-  oShop1Draft: o(6), // client B, food at shop1, criado (not submitted yet)
+  oFleet1: o(4), // client A, delivery at shop1, coletado, courier Q1, fleet F1
+  oShop1New: o(5), // client B, delivery at shop1, aguardando_loja
+  oShop1Draft: o(6), // client B, delivery at shop1, criado (not submitted yet)
   // catalog
   cat1: x(1), cat2: x(2), item1: x(3), item2: x(4), itemOrphan: x(5), itemPending: x(6),
   group1: x(7), group2: x(8), opt1: x(9), opt2: x(10),
@@ -113,15 +113,15 @@ insert into public.orders (id, kind, client_id, merchant_id, courier_id, fleet_i
                            status, total_brl, total_charged, payment_method, pricing_breakdown, fx_rate_used) values
   ('${ID.oQueueQ}', 'courier', '${ID.clientA}', null, null, null, '${addr('quarai')}', '${addr('quarai')}',
      'aguardando_motoboy', 25.00, 25.00, 'pix', '{"base": 10}', 7.8),
-  ('${ID.oQueueA}', 'food', '${ID.clientB}', '${ID.shop2}', null, null, '${addr('artigas')}', '${addr('artigas')}',
+  ('${ID.oQueueA}', 'delivery', '${ID.clientB}', '${ID.shop2}', null, null, '${addr('artigas')}', '${addr('artigas')}',
      'pronto', 60.00, 60.00, 'dinheiro_brl', '{"base": 10}', 7.8),
   ('${ID.oTakenQ2}', 'courier', '${ID.clientA}', null, '${ID.courierQ2}', null, '${addr('quarai')}', '${addr('quarai')}',
      'aceito', 25.00, 25.00, 'pix', '{"base": 10}', 7.8),
-  ('${ID.oFleet1}', 'food', '${ID.clientA}', '${ID.shop1}', '${ID.courierQ1}', '${ID.fleet1}', '${addr('quarai')}', '${addr('quarai')}',
+  ('${ID.oFleet1}', 'delivery', '${ID.clientA}', '${ID.shop1}', '${ID.courierQ1}', '${ID.fleet1}', '${addr('quarai')}', '${addr('quarai')}',
      'coletado', 50.00, 50.00, 'pix', '{"base": 10, "items_subtotal": 40}', 7.8),
-  ('${ID.oShop1New}', 'food', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
+  ('${ID.oShop1New}', 'delivery', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
      'aguardando_loja', 45.00, 45.00, 'pix', '{"base": 10}', 7.8),
-  ('${ID.oShop1Draft}', 'food', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
+  ('${ID.oShop1Draft}', 'delivery', '${ID.clientB}', '${ID.shop1}', null, null, '${addr('quarai')}', '${addr('quarai')}',
      'criado', 45.00, 45.00, 'pix', '{"base": 10}', 7.8);
 
 insert into public.order_items (order_id, item_id, name_snapshot, unit_price_brl_snapshot, qty, line_total_brl) values

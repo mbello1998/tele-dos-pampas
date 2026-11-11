@@ -117,7 +117,7 @@ describe('políticas RLS', () => {
       }
     })
 
-    test('anon só tem SELECT em settings, merchants_public e (por coluna) nas cinco tabelas do cardápio; ninguém tem TRUNCATE; audit_log é append-only nos privilégios', async () => {
+    test('anon só tem SELECT em settings, merchants_public e (por coluna) merchant_hours; ninguém tem TRUNCATE; audit_log é append-only nos privilégios', async () => {
       const anon = await asOwner<{ table_name: string; privilege_type: string }>(
         db,
         `select table_name, privilege_type from information_schema.role_table_grants
@@ -127,14 +127,15 @@ describe('políticas RLS', () => {
         { table_name: 'merchants_public', privilege_type: 'SELECT' },
         { table_name: 'settings', privilege_type: 'SELECT' },
       ])
-      // the five menu tables: a column-level allowlist (a column added later is not public by default), SELECT only
+      // merchant_hours: a column-level allowlist (a column added later is not public by default), SELECT only. The four menu
+      // tables lost their anon grants in 0029 (the shops are no longer a storefront), so they must NOT appear here.
       const anonCols = await asOwner<{ table_name: string; privilege_type: string }>(
         db,
         `select distinct table_name, privilege_type from information_schema.column_privileges
          where table_schema = 'public' and grantee = 'anon' and table_name not in ('settings', 'merchants_public') order by 1`,
       )
       expect(anonCols).toEqual(
-        ['catalog_categories', 'catalog_items', 'item_option_groups', 'item_options', 'merchant_hours'].map((t) => ({ table_name: t, privilege_type: 'SELECT' })),
+        ['merchant_hours'].map((t) => ({ table_name: t, privilege_type: 'SELECT' })),
       )
       const tableLevel = await asOwner(
         db,
@@ -142,7 +143,7 @@ describe('políticas RLS', () => {
          where n.nspname = 'public' and c.relkind in ('r', 'v') and has_table_privilege('anon', c.oid, 'select')
            and c.relname in ('catalog_categories', 'catalog_items', 'item_option_groups', 'item_options', 'merchant_hours')`,
       )
-      expect(tableLevel).toEqual([]) // none of the five has a table-wide SELECT for anon: the privilege is per column
+      expect(tableLevel).toEqual([]) // none of the five has a table-wide SELECT for anon: merchant_hours is per column, the other four have none
       const trunc = await asOwner(
         db,
         `select grantee, table_name from information_schema.role_table_grants
@@ -169,10 +170,10 @@ describe('políticas RLS', () => {
       ['merchants_public', 'true', ['anon', 'client']], // browsing is public (0028)
       ['fleet_orders', 'true', ['fleet']],
       ['merchant_hours', 'true', ['anon', 'client', 'merchant', 'admin']],
-      ['catalog_categories', 'true', ['anon', 'client', 'merchant', 'admin']],
-      ['catalog_items', 'true', ['anon', 'client', 'merchant', 'admin']],
-      ['item_option_groups', 'true', ['anon', 'client', 'merchant', 'admin']],
-      ['item_options', 'true', ['anon', 'client', 'merchant', 'admin']],
+      ['catalog_categories', 'true', ['client', 'merchant', 'admin']], // anon lost it in 0029
+      ['catalog_items', 'true', ['client', 'merchant', 'admin']], // anon lost it in 0029
+      ['item_option_groups', 'true', ['client', 'merchant', 'admin']], // anon lost it in 0029
+      ['item_options', 'true', ['client', 'merchant', 'admin']], // anon lost it in 0029
       ['couriers', 'true', ['courier', 'fleet', 'admin']],
       ['fleets', 'true', ['fleet', 'admin']],
       ['addresses', 'true', ['client', 'admin']],
@@ -195,7 +196,7 @@ describe('políticas RLS', () => {
         for (const k of Object.keys(who) as K[]) {
           let n: number
           if (k === 'anon' && table !== 'settings' && !allowed.includes('anon')) {
-            // anon holds no privilege on any table but settings and the six public menu objects: refused, not merely filtered
+            // anon holds no privilege on any table but settings, merchants_public and merchant_hours: refused, not merely filtered
             await actAs(db, 'anon')
             const a = await attempt(db, `select count(*)::int n from ${table}`)
             expectForbidden(a, `anon ${table}`)
@@ -791,7 +792,7 @@ describe('políticas RLS', () => {
       expect(await snap()).toBe(before)
       // o admin escreve (transação revertida no fim)
       await actAs(db, admin)
-      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'food' and valid_to is null`)
+      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'delivery' and valid_to is null`)
       expect(up.ok && up.rowCount).toBe(1)
       expect((await attempt(db, `insert into fx_rates (rate, source, valid_for_date) values (7.9, 'manual', '2030-01-02')`)).ok).toBe(true)
     })
@@ -834,22 +835,22 @@ describe('políticas RLS', () => {
 
     test('pricing_rules: fechar uma versão (valid_to sozinho) é permitido ao admin e a nova versão é uma linha nova', async () => {
       await actAs(db, admin)
-      const close = await attempt(db, `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'food' and valid_to is null`)
+      const close = await attempt(db, `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'delivery' and valid_to is null`)
       expect(close.ok && close.rowCount).toBe(1)
       expect((await attempt(db, `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from)
-        values ('quarai', 'food', 11, 2, 2.5, 10, current_date + 10)`)).ok).toBe(true)
+        values ('quarai', 'delivery', 11, 2, 2.5, 10, current_date + 10)`)).ok).toBe(true)
       // quem não é admin não fecha versão nenhuma (sem policy de update): zero linhas
       for (const w of [clientA, merchant1, fleet1, courierQ1]) {
         await actAs(db, w)
-        expectRefused(await attempt(db, `update pricing_rules set valid_to = current_date + 5 where city = 'artigas' and kind = 'food' and valid_to is null`), JSON.stringify(w))
+        expectRefused(await attempt(db, `update pricing_rules set valid_to = current_date + 5 where city = 'artigas' and kind = 'delivery' and valid_to is null`), JSON.stringify(w))
       }
-      expect((await asOwner<{ n: number }>(db, `select count(*)::int n from pricing_rules where city = 'artigas' and kind = 'food' and valid_to is null`))[0].n).toBe(1)
+      expect((await asOwner<{ n: number }>(db, `select count(*)::int n from pricing_rules where city = 'artigas' and kind = 'delivery' and valid_to is null`))[0].n).toBe(1)
     })
 
     test('pricing_rules: qualquer outra coluna é recusada, até para o admin; valid_to junto com outra coluna também', async () => {
       const snap = async () => (await asOwner<{ h: string }>(db, `select md5(string_agg(p::text, '|' order by p.id)) h from pricing_rules p`))[0].h
       const before = await snap()
-      const open = `where city = 'quarai' and kind = 'food' and valid_to is null`
+      const open = `where city = 'quarai' and kind = 'delivery' and valid_to is null`
       await actAs(db, admin)
       for (const set of [
         'base_fare_brl = 99', 'per_km_brl = 99', "city = 'artigas'", "kind = 'ride'", 'min_fare_brl = 1', 'included_km = 9', 'night_surcharge_brl = 0',
@@ -1036,7 +1037,7 @@ describe('políticas RLS', () => {
         expectForbidden(await attempt(db, `insert into zones (city, name) values ('quarai', 'x')`), `${name} insert zones`)
         expectRefused(await attempt(db, `update zones set is_served = false`), `${name} update zones`)
         expectForbidden(
-          await attempt(db, `insert into status_transitions (kind, from_status, to_status, allowed_role) values ('food', 'criado', 'entregue', 'client')`),
+          await attempt(db, `insert into status_transitions (kind, from_status, to_status, allowed_role) values ('delivery', 'criado', 'entregue', 'client')`),
           `${name} insert status_transitions`,
         )
       }
@@ -1088,12 +1089,12 @@ describe('políticas RLS', () => {
     test('escrita de admin em pricing_rules grava audit_log com before e after', async () => {
       await actAs(db, admin)
       // a única edição possível: fechar a versão vigente
-      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'food' and valid_to is null returning id`)
+      const up = await attempt(db, `update pricing_rules set valid_to = current_date + 30 where city = 'quarai' and kind = 'delivery' and valid_to is null returning id`)
       expect(up.ok && up.rowCount).toBe(1)
       const id = ((up as unknown) as { rows: { id: string }[] }).rows[0].id
       // e a nova versão é uma linha nova, que também é auditada
       const ins = await attempt(db, `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl, valid_from)
-         values ('quarai', 'food', 12, 2, 3, 12, current_date + 30) returning id`)
+         values ('quarai', 'delivery', 12, 2, 3, 12, current_date + 30) returning id`)
       expect(ins.ok).toBe(true)
       const newId = ((ins as unknown) as { rows: { id: string }[] }).rows[0].id
       const log = await asOwner<{ actor_id: string; actor_role: string; action: string; record_id: string; before: Record<string, string | null> | null; after: Record<string, string | null> | null }>(
@@ -1352,10 +1353,10 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
       )
       await committer.query(
         `insert into public.couriers (profile_id, vehicle, base_city, status) values ($1, 'moto', 'quarai', 'approved')`, [E.id])
-      // food order carried by courier E: items 40, commission 5, delivery 10, total 50, cash with change for 100
+      // delivery order carried by courier E: items 40, commission 5, delivery 10, total 50, cash with change for 100
       orderK = (await committer.query(
         `insert into public.orders (kind, client_id, courier_id, pickup_address, dropoff_address, total_brl, total_charged, payment_method, change_for, status, pricing_breakdown)
-         values ('food', $1, $2, '{"city":"quarai"}', '{"city":"quarai"}', 50.00, 50.00, 'dinheiro_brl', 100.00, 'coletado',
+         values ('delivery', $1, $2, '{"city":"quarai"}', '{"city":"quarai"}', 50.00, 50.00, 'dinheiro_brl', 100.00, 'coletado',
                  '{"base": 10, "items_subtotal": 40, "total": 50}') returning id`, [A.id, E.id])).rows[0].id
       await committer.query(`insert into public.order_commissions (order_id, commission_brl) values ($1, 5.00)`, [orderK])
       // and one order still in the quarai queue
@@ -1366,10 +1367,10 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
       await committer.query(`insert into public.order_events (order_id, from_status, to_status, actor_role) values ($1, 'pronto', 'coletado', 'courier')`, [orderK])
       fleetId = (await committer.query(
         `insert into public.fleets (owner_id, name, city, status) values ($1, 'E2E Tele', 'quarai', 'approved') returning id`, [D.id])).rows[0].id
-      // a food order served by D's fleet: total 50 = delivery 10 + items 40, commission 5 (merchant revenue)
+      // a delivery order served by D's fleet: total 50 = delivery 10 + items 40, commission 5 (merchant revenue)
       orderF = (await committer.query(
         `insert into public.orders (kind, client_id, fleet_id, pickup_address, dropoff_address, total_brl, total_charged, payment_method, status, pricing_breakdown)
-         values ('food', $1, $2, '{"city":"quarai"}', '{"city":"quarai"}', 50.00, 50.00, 'pix', 'coletado',
+         values ('delivery', $1, $2, '{"city":"quarai"}', '{"city":"quarai"}', 50.00, 50.00, 'pix', 'coletado',
                  '{"base": 10, "items_subtotal": 40, "total": 50}') returning id`,
         [A.id, fleetId])).rows[0].id
       await committer.query(`insert into public.order_commissions (order_id, commission_brl) values ($1, 5.00)`, [orderF])
@@ -1508,7 +1509,7 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     expect(pub.status).toBe(200)
     expect(pub.json.length).toBeGreaterThanOrEqual(2)
     expect((await rest('merchants_public?select=commission_pct', null)).status).toBe(400)
-    for (const t of ['merchants', 'orders', 'order_items', 'order_commissions', 'addresses', 'profiles', 'couriers', 'fleets', 'courier_positions', 'pricing_rules', 'fx_rates', 'audit_log']) {
+    for (const t of ['merchants', 'orders', 'order_items', 'order_commissions', 'addresses', 'profiles', 'couriers', 'fleets', 'courier_positions', 'pricing_rules', 'fx_rates', 'audit_log', 'catalog_categories', 'catalog_items', 'item_option_groups', 'item_options']) {
       expect((await rest(`${t}?select=*`, null)).status, `anon ${t}`).toBeGreaterThanOrEqual(400)
     }
   })

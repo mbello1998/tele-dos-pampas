@@ -7,7 +7,7 @@ import { isTrackingActive, type EventRow, type PositionRow } from '@/lib/realtim
 
 export type TrackingData = {
   code: string
-  kind: 'food' | 'courier' | 'ride'
+  kind: 'delivery' | 'courier' | 'ride'
   status: string
   events: EventRow[]
   position: PositionRow | null

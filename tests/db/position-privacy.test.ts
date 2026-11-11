@@ -59,7 +59,7 @@ const LABELS: Record<string, string> = {
 const EXTRA_SQL = `
 insert into public.orders (id, kind, client_id, merchant_id, courier_id, fleet_id, pickup_address, dropoff_address,
                            status, total_brl, total_charged, payment_method, pricing_breakdown, fx_rate_used) values
-  ('${oB}', 'food', '${ID.clientB}', '${ID.shop2}', '${ID.courierA1}', '${ID.fleet2}',
+  ('${oB}', 'delivery', '${ID.clientB}', '${ID.shop2}', '${ID.courierA1}', '${ID.fleet2}',
    '{"city":"artigas","street_name":"Rua teste","number":"1"}', '{"city":"artigas","street_name":"Rua teste","number":"2"}',
    'em_rota', 60.00, 60.00, 'pix', '{"base": 10}', 7.8);
 

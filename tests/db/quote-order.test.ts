@@ -56,7 +56,7 @@ type Extra = Omit<ServerQuote, keyof Quote>
 type FullQuote = ServerQuote
 
 type Args = {
-  kind?: 'food' | 'courier' | 'ride'
+  kind?: 'delivery' | 'courier' | 'ride'
   pickup?: Record<string, unknown>
   dropoff?: Record<string, unknown>
   merchant?: string | null
@@ -260,9 +260,9 @@ describe('adicional noturno', () => {
 
   test('vale nas duas cidades e nos três kinds', async () => {
     for (const [p, d] of [[Q1, Q2], [A1, A2]] as const) {
-      for (const kind of ['food', 'courier', 'ride'] as const) {
-        const m = kind === 'food' ? await merchant({ city: p.city, country: p.country, lat: p.lat, lng: p.lng }) : null
-        const items = kind === 'food' ? [{ itemId: await item(m!, 'x', 1), qty: 1 }] : undefined
+      for (const kind of ['delivery', 'courier', 'ride'] as const) {
+        const m = kind === 'delivery' ? await merchant({ city: p.city, country: p.country, lat: p.lat, lng: p.lng }) : null
+        const items = kind === 'delivery' ? [{ itemId: await item(m!, 'x', 1), qty: 1 }] : undefined
         const q = await quote({ kind, pickup: p, dropoff: d, at: NIGHT, merchant: m, items })
         expect(line(q, 'night_surcharge')?.amountBrl, `${p.city}/${kind}`).toBe(3)
       }
@@ -503,9 +503,9 @@ describe('horário de serviço (06:00 a 00:00), nunca a fronteira', () => {
       }
     }
     const { m, burger, small } = await shop()
-    const food = await quote({ kind: 'food', merchant: m, items: [{ itemId: burger, qty: 1, optionIds: [small] }], at: CLOSED })
-    expect(food.blocked).toBe(true)
-    expect(food.blockedCode).toBe('outside_service_hours')
+    const delivery = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: burger, qty: 1, optionIds: [small] }], at: CLOSED })
+    expect(delivery.blocked).toBe(true)
+    expect(delivery.blockedCode).toBe('outside_service_hours')
   })
 
   test('as bordas: 05:59:59 fechado, 06:00:00 aberto, 23:59:59 aberto, 00:00:00 fechado', async () => {
@@ -555,11 +555,11 @@ describe('horário de serviço (06:00 a 00:00), nunca a fronteira', () => {
 })
 
 // ===========================================================================================================
-describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
+describe('delivery: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
   test('subtotal com opções e quantidade, calculado no banco, e a comissão fora do total', async () => {
     const s = await shop(12.5)
     const q = await quote({
-      kind: 'food', merchant: s.m, distance: 1500,
+      kind: 'delivery', merchant: s.m, distance: 1500,
       items: [
         { itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon, s.cheese] }, // (25.90 + 4.10 + 3.00 + 2.50) × 2 = 71.00
         { itemId: s.soda, qty: 3 }, // 24.00
@@ -576,11 +576,11 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
   test('preços, totais e deltas mandados pelo cliente são ignorados', async () => {
     const s = await shop()
     const honest = await quote({
-      kind: 'food', merchant: s.m,
+      kind: 'delivery', merchant: s.m,
       items: [{ itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon] }, { itemId: s.soda, qty: 1 }],
     })
     const forged = await quote({
-      kind: 'food', merchant: s.m,
+      kind: 'delivery', merchant: s.m,
       items: [
         {
           itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon],
@@ -599,22 +599,22 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
   test('o preço vem do cardápio de AGORA: mudar o preço do item muda a cotação seguinte', async () => {
     const s = await shop()
     const items = [{ itemId: s.soda, qty: 1 }]
-    expect(line(await quote({ kind: 'food', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(8)
+    expect(line(await quote({ kind: 'delivery', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(8)
     await db.query(`update public.catalog_items set price_brl = 9.5 where id = $1`, [s.soda])
-    expect(line(await quote({ kind: 'food', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(9.5)
+    expect(line(await quote({ kind: 'delivery', merchant: s.m, items }), 'items_subtotal')?.amountBrl).toBe(9.5)
   })
 
   test('a loja decide a origem: cidade, país e regra vêm do banco, não do pickup que o cliente mandou', async () => {
     const m = await merchant({ city: 'quarai', country: 'BR' })
     const soda = await item(m, 'x', 1)
-    const rule = await newRule('quarai', 'food', { base: 20, minFare: 20, crossBorder: 8 })
+    const rule = await newRule('quarai', 'delivery', { base: 20, minFare: 20, crossBorder: 8 })
     // o cliente jura que a coleta é em Artigas/UY; o pedido é da loja de Quaraí/BR
-    const q = await quote({ kind: 'food', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: A1, dropoff: Q2 })
+    const q = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: A1, dropoff: Q2 })
     expect(q.pricingRuleId).toBe(rule)
     expect(q.crossesBorder).toBe(false)
     expect(line(q, 'base')?.amountBrl).toBe(20)
     // e cruza de verdade quando o destino está em outro país que o da LOJA
-    const across = await quote({ kind: 'food', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: Q1, dropoff: A1 })
+    const across = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: soda, qty: 1 }], pickup: Q1, dropoff: A1 })
     expect(across.crossesBorder).toBe(true)
     expect(line(across, 'cross_border_fee')?.amountBrl).toBe(8)
   })
@@ -622,13 +622,13 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
   test('item indisponível (ou opção indisponível) bloqueia dizendo qual', async () => {
     const s = await shop()
     await db.query(`update public.catalog_items set is_available = false where id = $1`, [s.soda])
-    const q = await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
+    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
     expect(q.blocked).toBe(true)
     expect(q.blockedCode).toBe('item_unavailable')
     expect(q.blockedReason).toContain('Refrigerante')
     await db.query(`update public.catalog_items set is_available = true where id = $1`, [s.soda])
     await db.query(`update public.item_options set is_available = false where id = $1`, [s.bacon])
-    const o = await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon] }] })
+    const o = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon] }] })
     expect(o.blocked).toBe(true)
     expect(o.blockedReason).toContain('Bacon')
   })
@@ -638,7 +638,7 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
     const other = await merchant()
     const foreign = await item(other, 'De outra loja', 1)
     const bad = async (items: unknown, label: string) => {
-      const r = await refused({ kind: 'food', merchant: s.m, items })
+      const r = await refused({ kind: 'delivery', merchant: s.m, items })
       expect(r.code, label).toBe('22023')
     }
     await bad([{ itemId: foreign, qty: 1 }], 'item de outra loja')
@@ -653,16 +653,16 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
   test('quantidade inválida ou fora do limite levanta 22023', async () => {
     const s = await shop()
     for (const qty of [0, -1, 1.5, '2', null, 100]) {
-      const r = await refused({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty }] })
+      const r = await refused({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty }] })
       expect(r.code, `qty ${JSON.stringify(qty)}`).toBe('22023')
     }
-    expect((await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 99 }] })).blocked).toBe(false)
+    expect((await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 99 }] })).blocked).toBe(false)
   })
 
   test('as regras do grupo valem: obrigatório, máximo, mínimo e opção repetida (delta negativo repetido baixaria o preço)', async () => {
     const s = await shop()
     const bad = async (optionIds: string[], label: string) => {
-      const r = await refused({ kind: 'food', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds }] })
+      const r = await refused({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds }] })
       expect(r.code, label).toBe('22023')
     }
     await bad([], 'grupo obrigatório sem escolha')
@@ -671,14 +671,14 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
     await bad([s.small, s.bacon, s.cheese, s.egg], 'três no grupo de máximo 2')
     await bad([s.small, s.small], 'opção repetida')
     await bad([s.small, s.bacon, s.bacon], 'extra repetido')
-    expect((await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon, s.cheese] }] })).blocked).toBe(false)
+    expect((await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 1, optionIds: [s.small, s.bacon, s.cheese] }] })).blocked).toBe(false)
     // mínimo > 0 em grupo não obrigatório
     const m = await merchant()
     const it = await item(m, 'combo', 10)
     const g = await group(it, 'molhos', 2, 3, false)
     const o1 = await option(g, 'a', 0)
     await option(g, 'b', 0)
-    const r = await refused({ kind: 'food', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o1] }] })
+    const r = await refused({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o1] }] })
     expect(r.code).toBe('22023')
   })
 
@@ -687,19 +687,19 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
     const it = await item(m, 'barato', 5)
     const g = await group(it, 'g', 0, 1)
     const o = await option(g, 'desconto', -10)
-    expect((await refused({ kind: 'food', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o] }] })).code).toBe('22023')
+    expect((await refused({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1, optionIds: [o] }] })).code).toBe('22023')
     const ok = await option(g, 'desconto menor', -2)
     // opção da mesma lista: só uma por vez porque o grupo é máx. 1
-    const q = await quote({ kind: 'food', merchant: m, items: [{ itemId: it, qty: 2, optionIds: [ok] }] })
+    const q = await quote({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 2, optionIds: [ok] }] })
     expect(line(q, 'items_subtotal')?.amountBrl).toBe(6)
   })
 
-  test('food exige loja e pelo menos um item; courier e ride não aceitam loja nem itens', async () => {
+  test('delivery exige loja e pelo menos um item; courier e ride não aceitam loja nem itens', async () => {
     const s = await shop()
-    expect((await refused({ kind: 'food', merchant: null, items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
-    expect((await refused({ kind: 'food', merchant: '00000000-0000-4000-8000-0000000000fd', items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
+    expect((await refused({ kind: 'delivery', merchant: null, items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
+    expect((await refused({ kind: 'delivery', merchant: '00000000-0000-4000-8000-0000000000fd', items: [{ itemId: s.soda, qty: 1 }] })).code).toBe('22023')
     for (const items of [null, [], {}, 'x', 5]) {
-      expect((await refused({ kind: 'food', merchant: s.m, items })).code, JSON.stringify(items)).toBe('22023')
+      expect((await refused({ kind: 'delivery', merchant: s.m, items })).code, JSON.stringify(items)).toBe('22023')
     }
     for (const kind of ['courier', 'ride'] as const) {
       expect((await refused({ kind, merchant: s.m })).code, `${kind} com loja`).toBe('22023')
@@ -723,7 +723,7 @@ describe('food: subtotal dos itens vindo do banco (spec 7, passo 5)', () => {
     await db.query(`create temp table merchants (like public.merchants including all)`)
     await db.query(`insert into pg_temp.merchants select * from public.merchants where id = $1`, [s.m])
     await db.query(`update pg_temp.merchants set commission_pct = 0`)
-    const q = await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
+    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] })
     expect(line(q, 'items_subtotal')?.amountBrl).toBe(8)
     expect(q.commissionBrl).toBe(1) // 12,5% de 8.00
   })
@@ -739,8 +739,8 @@ describe('a comissão nunca aparece no breakdown (migration 0019)', () => {
     const scenarios: Args[] = [
       { kind: 'courier' },
       { kind: 'ride', pickup: Q1, dropoff: A1, at: NIGHT, distance: 7777 },
-      { kind: 'food', merchant: s.m, items: [{ itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon] }], at: NIGHT },
-      { kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }], pickup: Q1, dropoff: A1 },
+      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 2, optionIds: [s.large, s.bacon] }], at: NIGHT },
+      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }], pickup: Q1, dropoff: A1 },
     ]
     for (const a of scenarios) {
       const q = await quote(a)
@@ -757,9 +757,9 @@ describe('a comissão nunca aparece no breakdown (migration 0019)', () => {
     }
   })
 
-  test('a comissão existe, em campo próprio fora do breakdown, e só em food; e a regra é a intenção, não só a regex', async () => {
+  test('a comissão existe, em campo próprio fora do breakdown, e só em delivery; e a regra é a intenção, não só a regex', async () => {
     const s = await shop(10)
-    const q = await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 5 }] }) // 40.00
+    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 5 }] }) // 40.00
     expect(q.commissionBrl).toBe(4)
     // O objeto inteiro CONTÉM a palavra (fora do breakdown): a ausência no breakdown não é por acaso.
     expect(JSON.stringify(q)).toMatch(COMMISSION_LIKE)
@@ -773,10 +773,10 @@ describe('a comissão nunca aparece no breakdown (migration 0019)', () => {
   test('arredondamento da comissão: 33.33 a 12,5% = 4.16625 -> 4.17; taxa zero -> 0', async () => {
     const m = await merchant({ commission: 12.5 })
     const it = await item(m, 'x', 33.33)
-    expect((await quote({ kind: 'food', merchant: m, items: [{ itemId: it, qty: 1 }] })).commissionBrl).toBe(4.17)
+    expect((await quote({ kind: 'delivery', merchant: m, items: [{ itemId: it, qty: 1 }] })).commissionBrl).toBe(4.17)
     const free = await merchant({ commission: 0 })
     const it2 = await item(free, 'y', 33.33)
-    expect((await quote({ kind: 'food', merchant: free, items: [{ itemId: it2, qty: 1 }] })).commissionBrl).toBe(0)
+    expect((await quote({ kind: 'delivery', merchant: free, items: [{ itemId: it2, qty: 1 }] })).commissionBrl).toBe(0)
   })
 })
 
@@ -789,8 +789,8 @@ describe('contrato do breakdown', () => {
       { kind: 'courier', distance: 4000 },
       { kind: 'courier', pickup: Q1, dropoff: A1, distance: 5333, at: NIGHT },
       { kind: 'ride', pickup: A1, dropoff: Q1, distance: 7777 },
-      { kind: 'food', merchant: s.m, items: [{ itemId: s.burger, qty: 3, optionIds: [s.large, s.egg] }], distance: 3456, at: NIGHT },
-      { kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 7 }], pickup: Q1, dropoff: A1, distance: 9999 },
+      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.burger, qty: 3, optionIds: [s.large, s.egg] }], distance: 3456, at: NIGHT },
+      { kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 7 }], pickup: Q1, dropoff: A1, distance: 9999 },
     ]
   }
 
@@ -1012,10 +1012,10 @@ describe('conversão para pesos (spec 7, passo 6)', () => {
     expect(q.totalUyu).toBe(convertBrlToUyu(6.25, 8.8, 0))
   })
 
-  test('food: o total em pesos inclui os itens', async () => {
+  test('delivery: o total em pesos inclui os itens', async () => {
     await insertFx('7.800000', '2099-06-10', { spread: '5' })
     const s = await shop()
-    const q = await quote({ kind: 'food', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] }) // 18.00
+    const q = await quote({ kind: 'delivery', merchant: s.m, items: [{ itemId: s.soda, qty: 1 }] }) // 18.00
     expect(q.totalBrl).toBe(18)
     expect(q.totalUyu).toBe(148) // 18 × 8.19 = 147.42 -> 148
   })

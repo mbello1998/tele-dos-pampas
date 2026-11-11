@@ -1,17 +1,13 @@
 // Textos da tela de confirmação do pedido. Moram aqui (e não em src/lib/i18n) pelo mesmo motivo de
-// src/lib/cart/copy.ts: as tabelas da camada de tradução são de outra tarefa. As recusas do servidor vêm prontas
+// src/lib/pricing/copy.ts: as tabelas da camada de tradução são de outra tarefa. As recusas do servidor vêm prontas
 // no idioma do usuário (order-core.ts); aqui ficam só os rótulos da tela.
 import type { Locale } from '@/lib/i18n'
 
 export const COPY: Record<Locale, Record<string, string>> = {
   'pt-BR': {
     title: 'Confirmar pedido',
-    kind_food: 'Comida',
     kind_courier: 'Encomenda',
     kind_ride: 'Moto-táxi',
-    empty_cart: 'Seu carrinho está vazio.',
-    see_shops: 'Ver lojas',
-    from_shop: 'Pedido de {name}',
     pickup: 'Buscar em',
     dropoff: 'Entregar em',
     ride_dropoff: 'Ir para',
@@ -34,12 +30,8 @@ export const COPY: Record<Locale, Record<string, string>> = {
   },
   'es-UY': {
     title: 'Confirmar pedido',
-    kind_food: 'Comida',
     kind_courier: 'Encomienda',
     kind_ride: 'Moto-taxi',
-    empty_cart: 'Tu carrito está vacío.',
-    see_shops: 'Ver locales',
-    from_shop: 'Pedido de {name}',
     pickup: 'Retirar en',
     dropoff: 'Entregar en',
     ride_dropoff: 'Ir a',

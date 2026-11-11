@@ -5,9 +5,8 @@
 // cada linha para pesos e arredondá-la para cima faz as linhas somarem mais que o total em pesos (o total é um
 // único arredondamento sobre o total em reais), e uma conta que não fecha parece cobrança errada. As linhas
 // explicam a composição; o total em pesos é o do servidor.
-import { formatMoney } from '@/lib/money/format'
-import { catalogT, type Translate } from '@/lib/cart/copy'
-import type { Currency, Locale } from '@/lib/cart/types'
+import { formatMoney, type Currency, type Locale } from '@/lib/money/format'
+import { priceT, type Translate } from '@/lib/pricing/copy'
 import type { Quote, ServerQuote } from '@/lib/pricing/types'
 
 /**
@@ -23,7 +22,7 @@ type Props = {
   t?: Translate
 }
 
-export function PriceSummary({ quote, currency, locale, t = catalogT }: Props) {
+export function PriceSummary({ quote, currency, locale, t = priceT }: Props) {
   if (quote.blocked) {
     return (
       <section aria-label={t('pricing.title', locale)} className="rounded-xl border border-brasa/60 bg-brasa/10 p-4">

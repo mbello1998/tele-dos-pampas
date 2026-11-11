@@ -46,7 +46,7 @@ function serviceClient(): SupabaseClient {
 type Trip = {
   clientId: string
   locale: Locale
-  pickup: Record<string, unknown> | null // courier e ride; em food é a loja, lida pelo banco
+  pickup: Record<string, unknown> | null // courier e ride; em delivery é a loja, lida pelo banco
   dropoff: Record<string, unknown>
   distanceM: number
   routeSource: 'osrm' | 'haversine'
@@ -67,11 +67,11 @@ async function resolveTrip(input: QuoteInput): Promise<Trip | Failure> {
   const rows = new Map((data as unknown as AddressRow[]).map((r) => [r.id, r]))
   const dropoff = rows.has(input.dropoffAddressId) ? addressToJson(rows.get(input.dropoffAddressId)!) : null
   const pickup = input.pickupAddressId && rows.has(input.pickupAddressId) ? addressToJson(rows.get(input.pickupAddressId)!) : null
-  if (!dropoff || (input.kind !== 'food' && !pickup)) return failure('address_not_found', locale)
+  if (!dropoff || (input.kind !== 'delivery' && !pickup)) return failure('address_not_found', locale)
 
-  // Origem: a loja (do banco) em food; o endereço de coleta nos outros.
+  // Origem: a loja (do banco) em delivery; o endereço de coleta nos outros.
   let origin: { lat: number; lng: number }
-  if (input.kind === 'food') {
+  if (input.kind === 'delivery') {
     const { data: m, error: mErr } = await serviceClient()
       .from('merchants')
       .select('status,lat,lng')
@@ -88,7 +88,7 @@ async function resolveTrip(input: QuoteInput): Promise<Trip | Failure> {
   return {
     clientId: session.user.id,
     locale,
-    pickup: input.kind === 'food' ? null : pickup,
+    pickup: input.kind === 'delivery' ? null : pickup,
     dropoff,
     distanceM: route.meters,
     routeSource: route.source,
@@ -104,7 +104,7 @@ async function unservedZoneMessage(): Promise<Partial<Record<Locale, string>> | 
 }
 
 const itemsOf = (input: QuoteInput) =>
-  input.kind === 'food' ? input.items.map((i) => ({ itemId: i.itemId, qty: i.qty, optionIds: i.optionIds })) : null
+  input.kind === 'delivery' ? input.items.map((i) => ({ itemId: i.itemId, qty: i.qty, optionIds: i.optionIds })) : null
 
 /**
  * A cotação que a tela mostra antes de confirmar. É a mesma conta que create_order refaz depois: o total que o

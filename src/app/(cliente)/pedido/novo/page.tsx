@@ -6,7 +6,7 @@ import { getLocale } from '@/lib/i18n/server'
 import { createClient } from '@/lib/supabase/server'
 import { CheckoutForm, type CheckoutAddress } from './CheckoutForm'
 import { copyT } from './copy'
-import { ORDER_KINDS, type OrderKind } from './order-core'
+import { CUSTOMER_KINDS, type OrderKind } from './order-core'
 
 export const metadata: Metadata = { title: 'Tele dos Pampas', robots: { index: false } }
 export const dynamic = 'force-dynamic'
@@ -16,7 +16,7 @@ type Row = { id: string; label: string | null; street_name: string | null; numbe
 export default async function NovoPedido({ searchParams }: { searchParams: Promise<{ kind?: string | string[] }> }) {
   const { kind: rawKind } = await searchParams
   const asked = Array.isArray(rawKind) ? rawKind[0] : rawKind
-  const kind: OrderKind = ORDER_KINDS.includes(asked as OrderKind) ? (asked as OrderKind) : 'food'
+  const kind: OrderKind = CUSTOMER_KINDS.includes(asked as OrderKind) ? (asked as OrderKind) : 'ride'
 
   const { profile } = await requireRole('client', { next: `/pedido/novo?kind=${kind}` })
   const locale = await getLocale()

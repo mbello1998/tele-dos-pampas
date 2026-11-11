@@ -46,7 +46,7 @@ const MUTANTS: Record<string, Edit[]> = {
   'queue-not-checked': [
     e(T, `if not ((v_o.kind = 'courier' and v_o.status = 'aguardando_motoboy')
                 or (v_o.kind = 'ride' and v_o.status = 'criado')
-                or (v_o.kind = 'food' and v_o.status = 'pronto')) then`, 'if false then'),
+                or (v_o.kind = 'delivery' and v_o.status = 'pronto')) then`, 'if false then'),
   ],
 
   // --- cancelamento e motivo
@@ -130,7 +130,7 @@ const ID = {
   fleet1: `7a20000${SLOT}-0000-4000-8000-${hex(1)}`,
 } as const
 
-type Kind = 'food' | 'courier' | 'ride'
+type Kind = 'delivery' | 'courier' | 'ride'
 const STATUSES = [
   'criado', 'aguardando_loja', 'aguardando_motoboy', 'em_preparo', 'pronto', 'aceito', 'motoboy_chegou',
   'coletado', 'em_rota', 'em_viagem', 'entregue', 'finalizado', 'cancelado',
@@ -187,7 +187,7 @@ async function mkOrder(o: MkOrder): Promise<string> {
   await as('postgres')
   const id = orderId(++seq)
   const city = o.city ?? 'quarai'
-  const shop = o.shop === undefined ? (o.kind === 'food' ? (city === 'quarai' ? ID.shop1 : ID.shop2) : null) : o.shop
+  const shop = o.shop === undefined ? (o.kind === 'delivery' ? (city === 'quarai' ? ID.shop1 : ID.shop2) : null) : o.shop
   await db.query(
     `insert into public.orders (id, kind, client_id, merchant_id, courier_id, fleet_id, pickup_address, dropoff_address,
         status, total_brl, total_charged, payment_method)
@@ -288,7 +288,7 @@ function inFixture() {
 describe('transition_order: o que a tabela permite e o que ela não permite', () => {
   inFixture()
   test('transição listada em status_transitions para o papel é aceita, e o estado e os carimbos andam', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'criado' })
+    const id = await mkOrder({ kind: 'delivery', status: 'criado' })
     accepted(await move(ID.clientA, id, 'aguardando_loja'))
     expect((await row(id)).status).toBe('aguardando_loja')
 
@@ -301,7 +301,7 @@ describe('transition_order: o que a tabela permite e o que ela não permite', ()
   })
 
   test('transição não listada é rejeitada e nada muda (nem estado, nem evento)', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'em_preparo' })
+    const id = await mkOrder({ kind: 'delivery', status: 'em_preparo' })
     const before = await row(id)
     // merchant pode em_preparo -> pronto; pular direto para entregue não está na tabela para ninguém
     refused(await move(ID.merchant1, id, 'entregue'), '55000', /not allowed/)
@@ -312,7 +312,7 @@ describe('transition_order: o que a tabela permite e o que ela não permite', ()
   })
 
   test('client tentando marcar entregue é rejeitado, inclusive no pedido dele', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'em_rota', courier: ID.courierQ1 })
+    const id = await mkOrder({ kind: 'delivery', status: 'em_rota', courier: ID.courierQ1 })
     refused(await move(ID.clientA, id, 'entregue', 'cheguei'), '55000', /not allowed for role client/)
     expect((await row(id)).status).toBe('em_rota')
     expect((await row(id)).delivered_at).toBeNull()
@@ -328,10 +328,10 @@ describe('transition_order: o que a tabela permite e o que ela não permite', ()
     accepted(await move(ID.courierQ1, ride, 'finalizado'))
     expect((await row(ride)).delivered_at).not.toBeNull()
 
-    // a MESMA tripla (coletado -> em_rota, courier) existe em food e NÃO existe em courier
-    const food = await mkOrder({ kind: 'food', status: 'coletado', courier: ID.courierQ1 })
+    // a MESMA tripla (coletado -> em_rota, courier) existe em delivery e NÃO existe em courier
+    const delivery = await mkOrder({ kind: 'delivery', status: 'coletado', courier: ID.courierQ1 })
     const parcel = await mkOrder({ kind: 'courier', status: 'coletado', courier: ID.courierQ1 })
-    accepted(await move(ID.courierQ1, food, 'em_rota'))
+    accepted(await move(ID.courierQ1, delivery, 'em_rota'))
     refused(await move(ID.courierQ1, parcel, 'em_rota'), '55000', /not allowed/)
     // e ride não tem preparo: merchant nunca mexe nele
     const ride2 = await mkOrder({ kind: 'ride', status: 'criado' })
@@ -342,7 +342,7 @@ describe('transition_order: o que a tabela permite e o que ela não permite', ()
 // =========================================================================================================
 describe('transition_order: cancelamento', () => {
   inFixture()
-  const cancelFromByClient: [Kind, Status][] = [['food', 'criado'], ['food', 'aguardando_loja'], ['courier', 'criado'], ['courier', 'aguardando_motoboy'], ['ride', 'criado']]
+  const cancelFromByClient: [Kind, Status][] = [['delivery', 'criado'], ['delivery', 'aguardando_loja'], ['courier', 'criado'], ['courier', 'aguardando_motoboy'], ['ride', 'criado']]
   test.each(cancelFromByClient)('client cancela %s a partir de %s, e o motivo e o autor ficam gravados', async (kind, status) => {
     const id = await mkOrder({ kind, status })
     accepted(await move(ID.clientA, id, 'cancelado', 'mudei de ideia'))
@@ -355,7 +355,7 @@ describe('transition_order: cancelamento', () => {
   // depois que a cozinha começou, o cliente sozinho não decide mais. O motivo vai preenchido: a recusa tem de
   // ser por causa do ESTADO, não por falta de motivo.
   const clientLocked: [Kind, Status, Partial<MkOrder>][] = [
-    ['food', 'em_preparo', {}], ['food', 'pronto', {}], ['food', 'coletado', { courier: ID.courierQ1 }], ['food', 'em_rota', { courier: ID.courierQ1 }],
+    ['delivery', 'em_preparo', {}], ['delivery', 'pronto', {}], ['delivery', 'coletado', { courier: ID.courierQ1 }], ['delivery', 'em_rota', { courier: ID.courierQ1 }],
     ['courier', 'aceito', { courier: ID.courierQ1 }], ['courier', 'coletado', { courier: ID.courierQ1 }],
     ['ride', 'aceito', { courier: ID.courierQ1 }], ['ride', 'motoboy_chegou', { courier: ID.courierQ1 }], ['ride', 'em_viagem', { courier: ID.courierQ1 }],
   ]
@@ -368,19 +368,19 @@ describe('transition_order: cancelamento', () => {
 
   test('merchant cancela de aguardando_loja, em_preparo e pronto, e de nenhum outro lugar', async () => {
     for (const status of ['aguardando_loja', 'em_preparo', 'pronto'] as const) {
-      const id = await mkOrder({ kind: 'food', status })
+      const id = await mkOrder({ kind: 'delivery', status })
       accepted(await move(ID.merchant1, id, 'cancelado', `sem estoque (${status})`))
       expect(await row(id)).toMatchObject({ status: 'cancelado', cancelled_by: ID.merchant1, cancel_reason: `sem estoque (${status})` })
     }
     for (const status of ['criado', 'coletado', 'em_rota'] as const) {
-      const id = await mkOrder({ kind: 'food', status, courier: status === 'criado' ? null : ID.courierQ1 })
+      const id = await mkOrder({ kind: 'delivery', status, courier: status === 'criado' ? null : ID.courierQ1 })
       refused(await move(ID.merchant1, id, 'cancelado', 'tarde demais'), '55000', /not allowed for role merchant/)
     }
   })
 
   test('cancelamento sem motivo é rejeitado para client, merchant e admin (nulo, vazio e só espaços)', async () => {
     for (const [who, kind, status] of [
-      [ID.clientA, 'food', 'aguardando_loja'], [ID.merchant1, 'food', 'em_preparo'], [ID.admin, 'food', 'em_preparo'],
+      [ID.clientA, 'delivery', 'aguardando_loja'], [ID.merchant1, 'delivery', 'em_preparo'], [ID.admin, 'delivery', 'em_preparo'],
     ] as const) {
       const id = await mkOrder({ kind, status })
       for (const note of [null, '', '   ']) {
@@ -395,7 +395,7 @@ describe('transition_order: cancelamento', () => {
   })
 
   test('ninguém apaga pedido, nem o admin: o DELETE direto não remove a linha', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'cancelado' })
+    const id = await mkOrder({ kind: 'delivery', status: 'cancelado' })
     for (const who of [ID.admin, ID.clientA, ID.merchant1]) {
       await as(who)
       const r = await attempt(`delete from public.orders where id = $1`, [id])
@@ -410,26 +410,26 @@ describe('transition_order: cancelamento', () => {
 describe('transition_order: quem move, e o rastro', () => {
   inFixture()
   test('toda transição grava order_events com ator e papel, para cada papel', async () => {
-    const food = await mkOrder({ kind: 'food', status: 'criado' })
-    accepted(await move(ID.clientA, food, 'aguardando_loja'))
-    accepted(await move(ID.merchant1, food, 'em_preparo', 'pode fazer'))
-    accepted(await move(ID.merchant1, food, 'pronto'))
-    accepted(await move(ID.courierQ1, food, 'coletado')) // aceite da fila de comida
-    accepted(await move(ID.admin, food, 'em_rota', 'motoboy avisou por rádio'))
-    expect(await events(food)).toEqual([
+    const delivery = await mkOrder({ kind: 'delivery', status: 'criado' })
+    accepted(await move(ID.clientA, delivery, 'aguardando_loja'))
+    accepted(await move(ID.merchant1, delivery, 'em_preparo', 'pode fazer'))
+    accepted(await move(ID.merchant1, delivery, 'pronto'))
+    accepted(await move(ID.courierQ1, delivery, 'coletado')) // aceite da fila de comida
+    accepted(await move(ID.admin, delivery, 'em_rota', 'motoboy avisou por rádio'))
+    expect(await events(delivery)).toEqual([
       { from_status: 'criado', to_status: 'aguardando_loja', actor_id: ID.clientA, actor_role: 'client', note: null },
       { from_status: 'aguardando_loja', to_status: 'em_preparo', actor_id: ID.merchant1, actor_role: 'merchant', note: 'pode fazer' },
       { from_status: 'em_preparo', to_status: 'pronto', actor_id: ID.merchant1, actor_role: 'merchant', note: null },
       { from_status: 'pronto', to_status: 'coletado', actor_id: ID.courierQ1, actor_role: 'courier', note: null },
       { from_status: 'coletado', to_status: 'em_rota', actor_id: ID.admin, actor_role: 'admin', note: 'motoboy avisou por rádio' },
     ])
-    const r = await row(food)
+    const r = await row(delivery)
     expect(r.picked_up_at).not.toBeNull()
     expect(r.accepted_at).not.toBeNull()
   })
 
   test('a recusa não deixa rastro: nenhum evento, nenhuma mudança de updated_at', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'criado' })
+    const id = await mkOrder({ kind: 'delivery', status: 'criado' })
     const before = await row(id)
     refused(await move(ID.clientA, id, 'entregue'), '55000', /not allowed/)
     expect(await row(id)).toEqual(before)
@@ -437,7 +437,7 @@ describe('transition_order: quem move, e o rastro', () => {
   })
 
   test('client só move o PRÓPRIO pedido; merchant só o da PRÓPRIA loja', async () => {
-    const mine = await mkOrder({ kind: 'food', status: 'aguardando_loja', client: ID.clientA })
+    const mine = await mkOrder({ kind: 'delivery', status: 'aguardando_loja', client: ID.clientA })
     refused(await move(ID.clientB, mine, 'cancelado', 'não é meu'), '42501', /not allowed to move/)
     refused(await move(ID.merchant2, mine, 'em_preparo'), '42501', /not allowed to move/) // loja de Artigas
     accepted(await move(ID.merchant1, mine, 'em_preparo'))
@@ -445,7 +445,7 @@ describe('transition_order: quem move, e o rastro', () => {
   })
 
   test('papel sem linha na tabela (fleet), perfil bloqueado e anônimo não movem nada', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'criado' })
+    const id = await mkOrder({ kind: 'delivery', status: 'criado' })
     refused(await move(ID.fleetOwner, id, 'cancelado', 'x'), '55000', /not allowed for role fleet/)
     // admin com perfil bloqueado perde o poder: app_role() devolve null
     refused(await move(ID.blockedAdmin, id, 'entregue', 'x'), '42501', /not allowed/)
@@ -541,7 +541,7 @@ describe('admin: qualquer transição, sempre com motivo e registro (o bypass mo
   })
 
   test('admin move de qualquer status para qualquer outro do fluxo, com motivo, e o evento leva o motivo', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'criado', courier: ID.courierQ1 })
+    const id = await mkOrder({ kind: 'delivery', status: 'criado', courier: ID.courierQ1 })
     accepted(await move(ID.admin, id, 'entregue', 'cliente confirmou por telefone')) // salta o fluxo inteiro
     accepted(await move(ID.admin, id, 'em_preparo', 'foi engano, voltando')) // e volta de um estado final
     expect(await events(id)).toEqual([
@@ -551,7 +551,7 @@ describe('admin: qualquer transição, sempre com motivo e registro (o bypass mo
   })
 
   test('admin sem motivo é recusado (nulo, vazio, espaços), em qualquer transição', async () => {
-    const id = await mkOrder({ kind: 'food', status: 'aguardando_loja' })
+    const id = await mkOrder({ kind: 'delivery', status: 'aguardando_loja' })
     for (const note of [null, '', '  \t ']) {
       refused(await move(ID.admin, id, 'em_preparo', note), '22023', /reason/)
     }
@@ -633,13 +633,13 @@ describe('assign_courier: despacho manual', () => {
     accepted(await assign(ID.admin, ride, ID.courierQ1))
     expect(await row(ride)).toMatchObject({ status: 'aceito', courier_id: ID.courierQ1 })
 
-    const food = await mkOrder({ kind: 'food', status: 'em_preparo' })
-    accepted(await assign(ID.admin, food, ID.courierQ2))
-    expect(await row(food)).toMatchObject({ status: 'em_preparo', courier_id: ID.courierQ2, fleet_id: null })
+    const delivery = await mkOrder({ kind: 'delivery', status: 'em_preparo' })
+    accepted(await assign(ID.admin, delivery, ID.courierQ2))
+    expect(await row(delivery)).toMatchObject({ status: 'em_preparo', courier_id: ID.courierQ2, fleet_id: null })
     // atribuído, o pedido sai da fila: outro motoboy não o pega quando ficar pronto
-    accepted(await move(ID.merchant1, food, 'pronto'))
-    refused(await move(ID.courierQ1, food, 'coletado'), '55000', /already has a courier/)
-    accepted(await move(ID.courierQ2, food, 'coletado'))
+    accepted(await move(ID.merchant1, delivery, 'pronto'))
+    refused(await move(ID.courierQ1, delivery, 'coletado'), '55000', /already has a courier/)
+    accepted(await move(ID.courierQ2, delivery, 'coletado'))
   })
 
   test('só o admin atribui; motoboy pendente, de outro perfil ou inexistente é recusado; pedido encerrado também', async () => {
@@ -744,7 +744,7 @@ describe('o console só mostra botão que o banco aceita (legalTargets == o que 
 
   test('para client, merchant e courier, em todo estado de todo kind', async () => {
     let probes = 0
-    for (const kind of ['food', 'courier', 'ride'] as const) {
+    for (const kind of ['delivery', 'courier', 'ride'] as const) {
       for (const status of flow(kind)) {
         const needsCourier = COURIER_STATES.includes(status)
         for (const role of ['client', 'merchant', 'courier'] as const) {
@@ -758,14 +758,14 @@ describe('o console só mostra botão que o banco aceita (legalTargets == o que 
         }
       }
     }
-    // 3 papéis x todos os estados dos 3 fluxos (food 7 + cancelado, courier 5, ride 5...): o laço não pode ficar vazio
-    const expected = (['food', 'courier', 'ride'] as const).reduce((n, k) => n + flow(k).length * 3, 0)
+    // 3 papéis x todos os estados dos 3 fluxos (delivery 7 + cancelado, courier 5, ride 5...): o laço não pode ficar vazio
+    const expected = (['delivery', 'courier', 'ride'] as const).reduce((n, k) => n + flow(k).length * 3, 0)
     expect(expected).toBeGreaterThanOrEqual(45)
     expect(probes).toBe(expected)
   })
 
   test('para o admin, com e sem motoboy atribuído, em todo estado de todo kind', async () => {
-    for (const kind of ['food', 'courier', 'ride'] as const) {
+    for (const kind of ['delivery', 'courier', 'ride'] as const) {
       for (const status of flow(kind)) {
         for (const withCourier of [false, true]) {
           const courier = withCourier ? ID.courierQ1 : null
@@ -782,9 +782,9 @@ describe('o console só mostra botão que o banco aceita (legalTargets == o que 
   test('valores esperados à mão (a comparação acima sozinha não pegaria os dois lados errados juntos)', () => {
     const t = (kind: Kind, status: Status, role: 'client' | 'merchant' | 'courier' | 'admin', courier: string | null = null) =>
       legalTargets(rows, { kind, status, courier_id: courier }, role)
-    expect(t('food', 'em_preparo', 'merchant').all.sort()).toEqual(['cancelado', 'pronto'])
-    expect(t('food', 'em_preparo', 'client').all).toEqual([]) // a cozinha já começou
-    expect(t('food', 'aguardando_loja', 'client').all).toEqual(['cancelado'])
+    expect(t('delivery', 'em_preparo', 'merchant').all.sort()).toEqual(['cancelado', 'pronto'])
+    expect(t('delivery', 'em_preparo', 'client').all).toEqual([]) // a cozinha já começou
+    expect(t('delivery', 'aguardando_loja', 'client').all).toEqual(['cancelado'])
     expect(t('ride', 'em_viagem', 'courier', ID.courierQ1).all).toEqual(['finalizado'])
     // admin: o "próximo passo" são as transições do fluxo, o resto é ajuste manual; sem motoboy, nada de estado de motoboy
     const a = t('courier', 'aguardando_motoboy', 'admin')

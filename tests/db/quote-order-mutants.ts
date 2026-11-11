@@ -86,7 +86,7 @@ export const MUTANTS: Record<string, Edit[]> = {
   ],
   'no-cross-border-fee': [{ from: 'if v_amount > 0 then', to: 'if false then' }],
   'crossing-never-flagged': [{ from: 'v_crosses := v_o_country is distinct from v_d_country;', to: 'v_crosses := false;' }],
-  'food-origin-from-client': [
+  'delivery-origin-from-client': [
     { from: 'v_o_city := v_merchant.city;', to: `v_o_city := p_pickup ->> 'city';` },
     { from: 'v_o_country := v_merchant.country;', to: `v_o_country := p_pickup ->> 'country';` },
   ],

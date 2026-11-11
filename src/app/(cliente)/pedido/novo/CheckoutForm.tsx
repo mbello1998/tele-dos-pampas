@@ -1,19 +1,18 @@
 'use client'
 
 // Confirmação do pedido. A tela mostra o preço que o SERVIDOR cotou (quoteOrder) e manda de volta o total que viu;
-// o servidor recota e recusa se divergir. Nada aqui calcula preço: o carrinho só dá a intenção (item, qtd, opções).
+// o servidor recota e recusa se divergir. Nada aqui calcula preço: a tela só dá a intenção (tipo e endereços).
+// Serve a mototáxi e encomenda, que quem pede é o cliente. A entrega da loja (`delivery`) tem tela própria.
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createOrder, quoteOrder } from '@/actions/orders'
 import { errorClass, inputClass, labelClass, primaryButtonClass, secondaryButtonClass } from '@/components/auth/ui'
 import { PriceSummary } from '@/components/order/PriceSummary'
-import { fmt } from '@/lib/cart/copy'
-import { cartStore, useCart } from '@/lib/cart/store'
 import type { Locale } from '@/lib/i18n'
 import { formatMoney, type Currency } from '@/lib/money/format'
 import { copyT } from './copy'
-import type { CustomerQuote, OrderKind, PaymentMethod } from './order-core'
+import { CUSTOMER_KINDS, type CustomerQuote, type OrderKind, type PaymentMethod } from './order-core'
 
 export type CheckoutAddress = { id: string; label: string; summary: string }
 
@@ -24,13 +23,12 @@ type Props = {
   addresses: CheckoutAddress[]
 }
 
-const KINDS: OrderKind[] = ['food', 'courier', 'ride']
+const KINDS: OrderKind[] = [...CUSTOMER_KINDS]
 const IDS = { dropoff: 'co-dropoff', pickup: 'co-pickup', change: 'co-change', notes: 'co-notes' }
 
 export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
   const router = useRouter()
   const t = (key: string) => copyT(key, locale)
-  const cart = useCart()
 
   const [dropoffId, setDropoffId] = useState(addresses[0]?.id ?? '')
   const [pickupId, setPickupId] = useState(addresses[0]?.id ?? '')
@@ -46,25 +44,12 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
   // numa conexão lenta chegam antes dele. O banco também recusa um segundo pedido idêntico (TD011).
   const inFlight = useRef(false)
 
-  const food = kind === 'food'
-  const items = useMemo(
-    () => cart.lines.map((l) => ({ itemId: l.item.id, qty: l.qty, optionIds: l.optionIds })),
-    [cart.lines],
-  )
-  const itemsKey = JSON.stringify(items)
-  const ready = Boolean(dropoffId) && (food ? items.length > 0 : Boolean(pickupId))
+  const ready = Boolean(dropoffId) && Boolean(pickupId)
 
   // A intenção que vai ao servidor. Só ids: nenhum preço, distância ou coordenada.
-  // itemsKey, não `items`: a identidade do array muda a cada render do carrinho sem o conteúdo mudar.
   const intent = useMemo(
-    () => ({
-      kind,
-      merchantId: food ? cart.merchantId : null,
-      items: food ? JSON.parse(itemsKey) : [],
-      pickupAddressId: food ? null : pickupId,
-      dropoffAddressId: dropoffId,
-    }),
-    [kind, food, cart.merchantId, itemsKey, pickupId, dropoffId],
+    () => ({ kind, merchantId: null, items: [], pickupAddressId: pickupId, dropoffAddressId: dropoffId }),
+    [kind, pickupId, dropoffId],
   )
 
   const seq = useRef(0)
@@ -128,7 +113,6 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
         notes: notes.trim() === '' ? null : notes.trim(),
       })
       if (res.ok) {
-        if (food) cartStore.clear()
         router.push(`/pedido/${res.code}`)
         return // o botão fica desativado até a navegação: um segundo toque não cria um segundo pedido
       }
@@ -143,17 +127,6 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
     }
     inFlight.current = false
     setSubmitting(false)
-  }
-
-  if (food && cart.lines.length === 0) {
-    return (
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-        <p className="text-white/80">{t('empty_cart')}</p>
-        <Link href="/lojas" className={`${secondaryButtonClass} mt-3`}>
-          {t('see_shops')}
-        </Link>
-      </div>
-    )
   }
 
   const addressSelect = (id: string, label: string, value: string, set: (v: string) => void) => (
@@ -186,8 +159,6 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
         ))}
       </nav>
 
-      {food && cart.merchantName && <p className="text-white/80">{fmt(t('from_shop'), { name: cart.merchantName })}</p>}
-
       {addresses.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
           <p className="text-white/80">{t('no_addresses')}</p>
@@ -197,7 +168,7 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
         </div>
       ) : (
         <>
-          {!food && addressSelect(IDS.pickup, kind === 'ride' ? t('ride_pickup') : t('pickup'), pickupId, setPickupId)}
+          {addressSelect(IDS.pickup, kind === 'ride' ? t('ride_pickup') : t('pickup'), pickupId, setPickupId)}
           {addressSelect(IDS.dropoff, kind === 'ride' ? t('ride_dropoff') : t('dropoff'), dropoffId, setDropoffId)}
           <Link href="/enderecos/novo" className="inline-block min-h-11 text-sm text-white/70 underline">
             {t('new_address')}

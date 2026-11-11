@@ -11,7 +11,7 @@
  * tests/db/transition.test.ts asks the real database, for every kind and status, which targets it accepts and
  * requires exactly this function's answer.
  */
-export type OrderKind = 'food' | 'courier' | 'ride'
+export type OrderKind = 'delivery' | 'courier' | 'ride'
 export type OrderStatus =
   | 'criado' | 'aguardando_loja' | 'aguardando_motoboy' | 'em_preparo' | 'pronto' | 'aceito'
   | 'motoboy_chegou' | 'coletado' | 'em_rota' | 'em_viagem' | 'entregue' | 'finalizado' | 'cancelado'
@@ -86,7 +86,7 @@ export const canAssignCourier = (status: OrderStatus): boolean => !CLOSED_STATUS
 /**
  * Waiting for a courier: no courier yet AND a courier is the one who normally moves it from here. Derived from
  * the table, so it is the same queue the database offers couriers (courier/aguardando_motoboy, ride/criado,
- * food/pronto): an unassigned order can only be in those states, because nothing past them is reachable without
+ * delivery/pronto): an unassigned order can only be in those states, because nothing past them is reachable without
  * a courier (transition_order refuses it, for the admin too).
  */
 export function awaitingCourier(rows: TransitionRow[], order: OrderLike): boolean {
@@ -111,4 +111,4 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   finalizado: 'Finalizado',
   cancelado: 'Cancelado',
 }
-export const KIND_LABEL: Record<OrderKind, string> = { food: 'Comida', courier: 'Encomenda', ride: 'Moto-táxi' }
+export const KIND_LABEL: Record<OrderKind, string> = { delivery: 'Entrega da loja', courier: 'Encomenda', ride: 'Moto-táxi' }

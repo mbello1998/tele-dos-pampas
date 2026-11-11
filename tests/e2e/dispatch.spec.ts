@@ -53,8 +53,8 @@ test.beforeAll(async () => {
       orderIds[code] = String(r[0].id)
     }
     await mk(CODES.fila, 'courier', 'aguardando_motoboy', null)
-    await mk(CODES.preparo, 'food', 'em_preparo', shopId)
-    await mk(CODES.velho, 'food', 'aguardando_loja', shopId)
+    await mk(CODES.preparo, 'delivery', 'em_preparo', shopId)
+    await mk(CODES.velho, 'delivery', 'aguardando_loja', shopId)
     await mk(CODES.encerrado, 'courier', 'entregue', null)
   })
 })
@@ -97,7 +97,7 @@ test.describe('como admin', () => {
     const manual = await fila.locator('select[name="to"] option').allTextContents()
     expect(manual).toEqual(['Novo estado…', 'Criado'])
 
-    // Comida em preparo: pronto e cancelar. Entregue, em rota, coletado... nunca como botão.
+    // Entrega em preparo: pronto e cancelar. Entregue, em rota, coletado... nunca como botão.
     const preparo = row(page, CODES.preparo)
     expect(await buttonNames(preparo)).toEqual(['Atribuir', 'Cancelar pedido', 'Marcar: Pronto para retirar'])
   })

@@ -78,12 +78,12 @@ describe('schema', () => {
 })
 
 describe('seeds', () => {
-  test('seed carrega as transições: food 11, courier 6, ride 5 (sem linhas de admin)', async () => {
+  test('seed carrega as transições: delivery 11, courier 6, ride 5 (sem linhas de admin)', async () => {
     const { rows } = await db.query<{ kind: string; n: number }>(
       `select kind::text, count(*)::int as n from status_transitions group by kind`,
     )
     const by = Object.fromEntries(rows.map((r) => [r.kind, r.n]))
-    expect(by).toEqual({ food: 11, courier: 6, ride: 5 })
+    expect(by).toEqual({ delivery: 11, courier: 6, ride: 5 })
     const roles = await db.query(
       `select allowed_role::text r, count(*)::int n from status_transitions group by 1 order by 1`,
     )
@@ -95,8 +95,8 @@ describe('seeds', () => {
     const key = (r: { k: string; r: string; f: string }) => `${r.k}/${r.r}/${r.f}`
     expect(cancel.rows.map(key)).toEqual([
       'courier/client/aguardando_motoboy', 'courier/client/criado',
-      'food/client/aguardando_loja', 'food/client/criado',
-      'food/merchant/aguardando_loja', 'food/merchant/em_preparo', 'food/merchant/pronto',
+      'delivery/client/aguardando_loja', 'delivery/client/criado',
+      'delivery/merchant/aguardando_loja', 'delivery/merchant/em_preparo', 'delivery/merchant/pronto',
       'ride/client/criado',
     ])
   })
@@ -140,19 +140,19 @@ describe('seeds', () => {
       db.query(
         `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
            night_surcharge_brl, night_from, night_to, cross_border_fee_brl, passenger_cross_border_fee_brl, valid_from)
-         values ('quarai', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date)`,
+         values ('quarai', 'delivery', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date)`,
       ),
     ).rejects.toMatchObject({ code: '23P01' })
     await db.query('rollback to savepoint sp')
 
     // a new version that starts after the old one is closed is allowed
     await db.query(
-      `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'food' and valid_to is null`,
+      `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'delivery' and valid_to is null`,
     )
     await db.query(
       `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
          night_surcharge_brl, night_from, night_to, cross_border_fee_brl, passenger_cross_border_fee_brl, valid_from)
-       values ('quarai', 'food', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date + 10)`,
+       values ('quarai', 'delivery', 11, 2, 2.5, 10, 3, '23:00', '05:00', 8, 12, current_date + 10)`,
     )
   })
 
