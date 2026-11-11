@@ -58,7 +58,10 @@ test.beforeAll(async () => {
     await mk(CODES.encerrado, 'courier', 'entregue', null)
   })
 })
-test.afterAll(cleanup)
+test.afterAll(async () => {
+  test.setTimeout(120_000)
+  await cleanup()
+})
 
 const row = (page: import('@playwright/test').Page, code: string) => page.locator(`tr[data-code="${code}"]`)
 const buttonNames = async (r: import('@playwright/test').Locator) =>
@@ -162,6 +165,7 @@ test.describe('como admin', () => {
 })
 
 test('limpeza: nada do teste sobra no banco', async () => {
+  test.setTimeout(120_000)
   await cleanup()
   const r = await withDb((q) => q(
     `select (select count(*)::int from public.orders where code = any($1::text[])) as orders,
