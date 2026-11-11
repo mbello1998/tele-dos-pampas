@@ -64,6 +64,10 @@ cross join (values ('food'::public.order_kind), ('courier'), ('ride')) as k (kin
 
 insert into public.fx_rates (rate, source, spread_pct, is_manual_override, valid_for_date)
 values (7, 'manual', 5, true, ${TODAY});
+
+-- os testes criam pedidos idênticos em sequência de propósito: a guarda de toque duplo fica desligada aqui
+insert into public.settings (key, value) values ('orders.duplicate_window_seconds', '0')
+on conflict (key) do update set value = '0';
 `
 
 // --- pontos ----------------------------------------------------------------------------------------------
@@ -71,7 +75,8 @@ type Pt = { city: string; country: string; lat: number; lng: number }
 const Q1: Pt = { city: 'quarai', country: 'BR', lat: -30.3791, lng: -56.4514 }
 const Q2: Pt = { city: 'quarai', country: 'BR', lat: -30.385, lng: -56.448 }
 const Z: Pt = { city: 'quarai', country: 'BR', lat: -30.392, lng: -56.46 } // longe de Q1 e Q2
-const A1: Pt = { city: 'artigas', country: 'UY', lat: -30.4119, lng: -56.469 }
+// perto da ponte, a ~0,5 km de Q1: create_order recusa distância abaixo da linha reta entre as pontas
+const A1: Pt = { city: 'artigas', country: 'UY', lat: -30.3835, lng: -56.456 }
 
 // --- a chamada -------------------------------------------------------------------------------------------
 type Args = {

@@ -42,6 +42,9 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // Guarda síncrona, como a do formulário de endereço: o estado só muda no próximo render, e dois toques seguidos
+  // numa conexão lenta chegam antes dele. O banco também recusa um segundo pedido idêntico (TD011).
+  const inFlight = useRef(false)
 
   const food = kind === 'food'
   const items = useMemo(
@@ -110,7 +113,8 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!canSubmit || !quote) return
+    if (inFlight.current || !canSubmit || !quote) return
+    inFlight.current = true
     setSubmitting(true)
     setError(null)
     setNotice(null)
@@ -137,6 +141,7 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
     } catch {
       setError(t('quote_failed'))
     }
+    inFlight.current = false
     setSubmitting(false)
   }
 
@@ -167,7 +172,7 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
   )
 
   return (
-    <form onSubmit={submit} noValidate lang={locale} className="space-y-5" data-testid="checkout-form">
+    <form onSubmit={submit} noValidate lang={locale} className="space-y-5" data-testid="checkout-form" aria-busy={submitting}>
       <nav aria-label={t('title')} className="flex gap-2">
         {KINDS.map((k) => (
           <Link

@@ -29,15 +29,25 @@
 --      the audit row too, and the attempt must be on record. Nothing else has been written by then.
 --   7. payment: dinheiro_uyu needs change_for >= the pesos charged, dinheiro_brl's change_for (optional) must
 --      cover the reais charged, pix takes none                              TD008
+--   6b. a second identical order (same client, kind, shop, address and total) inside a few seconds is a double
+--      tap, not a second purchase: refused with TD011, whose DETAIL is the code of the order already created, so
+--      the screen can go to it instead of showing a failure (settings['orders.duplicate_window_seconds'],
+--      default 8; 0 switches the guard off)
+--   3b. the distance has a FLOOR: a route is never shorter than the straight line between its ends. Below 95%
+--      of the haversine minus 100 m the call is REJECTED (TD012), not clamped: clamping would quietly price a
+--      different trip from the one the caller measured. A longer route is always fine.
 --   8. inserts the order with the FROZEN price (pricing_breakdown holds ONLY the breakdown, never the
 --      commission), one order_items row per line with name and unit price snapshots, the commission in
---      order_commissions, and the first order_events row (created, actor_role client)
+--      order_commissions, and the first order_events row (created, actor_role client). The order is born in
+--      `criado`; the first real move is NOT made here (the product model for who sees a food order is being
+--      decided; see the report).
 --
 -- THE COMMISSION never leaves the server: the return value is the customer-facing subset.
 --
 -- SQLSTATEs (class TD, ours): TD001 rate_limited, TD002 merchant_unavailable, TD003 merchant_closed,
 -- TD004 cross_border_not_accepted, TD005 outside_service_hours, TD006 zone_not_served, TD007 item_unavailable,
--- TD008 payment_invalid, TD009 distance_too_long, TD010 client_not_allowed. Malformed input keeps the
+-- TD008 payment_invalid, TD009 distance_too_long, TD010 client_not_allowed, TD011 duplicate_order (DETAIL = the
+-- existing order's code), TD012 distance_too_short. Malformed input keeps the
 -- quote_order codes (22004 null, 22023 invalid). The Server Action maps them to the user's language.
 
 -- ---------------------------------------------------------------------------------------------
@@ -46,7 +56,8 @@
 -- ---------------------------------------------------------------------------------------------
 insert into public.settings (key, value, is_public) values
   ('orders.rate_limit_per_10min', '5', false),
-  ('orders.max_distance_m', '20000', false)
+  ('orders.max_distance_m', '20000', false),
+  ('orders.duplicate_window_seconds', '8', false)
 on conflict (key) do nothing;
 
 -- a whole number from settings (a JSON number or numeric string), else the default
@@ -157,6 +168,13 @@ declare
   v_unit numeric;
   v_items_total numeric := 0;
   v_expected numeric;
+  v_dup_window integer;
+  v_dup_code text;
+  v_a_lat numeric;
+  v_a_lng numeric;
+  v_b_lat numeric;
+  v_b_lng numeric;
+  v_haversine numeric;
 begin
   -- 0. a well-formed call. Totals, distance and payment are never defaulted.
   if p_client_id is null or p_kind is null or p_payment_method is null or p_client_total_brl is null
@@ -247,6 +265,25 @@ begin
   v_uyu := (v_quote ->> 'totalUyu')::numeric;
   v_crosses := (v_quote ->> 'crossesBorder')::boolean;
 
+  -- the floor under the distance (the points are valid by now: quote_order checked their shape). A route can be
+  -- longer than the straight line, never shorter; 95% minus 100 m leaves room for snapping to the street grid.
+  -- A food order starts at the shop; if the shop has no coordinates there is nothing to measure against.
+  v_a_lat := case when p_kind = 'food' then v_merchant.lat else (p_pickup ->> 'lat')::numeric end;
+  v_a_lng := case when p_kind = 'food' then v_merchant.lng else (p_pickup ->> 'lng')::numeric end;
+  v_b_lat := (p_dropoff ->> 'lat')::numeric;
+  v_b_lng := (p_dropoff ->> 'lng')::numeric;
+  if v_a_lat is not null and v_a_lng is not null then
+    v_haversine := 2 * 6371008.8 * asin(least(1, sqrt(
+      power(sin(radians((v_b_lat - v_a_lat)::double precision) / 2), 2)
+      + cos(radians(v_a_lat::double precision)) * cos(radians(v_b_lat::double precision))
+        * power(sin(radians((v_b_lng - v_a_lng)::double precision) / 2), 2)
+    )));
+    if p_distance_m < v_haversine * 0.95 - 100 then
+      raise exception 'create_order: a distance of % m is shorter than the straight line of % m between the points',
+        p_distance_m, round(v_haversine) using errcode = 'TD012';
+    end if;
+  end if;
+
   if v_crosses and p_kind = 'food' and not v_merchant.accepts_cross_border then
     raise exception 'create_order: merchant % does not deliver across the border', p_merchant using errcode = 'TD004';
   end if;
@@ -267,6 +304,20 @@ begin
       )
     );
     return jsonb_build_object('ok', false, 'code', 'price_mismatch', 'totalBrl', v_total, 'totalUyu', v_uyu);
+  end if;
+
+  -- 6b. a double tap. This client's own orders only (the advisory lock above serialises them, so the second of two
+  --     simultaneous taps sees the first one committed). Same kind, shop, address and total in the window.
+  v_dup_window := private.setting_int('orders.duplicate_window_seconds', 8);
+  if v_dup_window > 0 then
+    select o.code into v_dup_code from public.orders o
+    where o.client_id = p_client_id and o.kind = p_kind and o.merchant_id is not distinct from p_merchant
+      and o.total_brl = v_total and o.dropoff_address = p_dropoff
+      and o.created_at > v_now - make_interval(secs => v_dup_window)
+    order by o.created_at desc limit 1;
+    if v_dup_code is not null then
+      raise exception 'create_order: the same order was sent a moment ago' using errcode = 'TD011', detail = v_dup_code;
+    end if;
   end if;
 
   -- 7. payment. The charged currency follows the payment method: pesos in cash for dinheiro_uyu.

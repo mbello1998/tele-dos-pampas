@@ -157,6 +157,19 @@ export async function createOrder(raw: unknown): Promise<CreateOrderResult> {
   })
 
   if (error) {
+    // Toque duplo: o banco recusou um segundo pedido idêntico e devolve o código do primeiro em `details`.
+    // Para quem tocou duas vezes isso é "já enviado", não um erro.
+    if (error.code === 'TD011' && typeof error.details === 'string' && /^[A-Z0-9]{6}$/.test(error.details)) {
+      const pesos = input.paymentMethod === 'dinheiro_uyu' && input.clientTotalUyu !== null
+      return {
+        ok: true,
+        duplicate: true,
+        code: error.details,
+        totalBrl: input.clientTotalBrl,
+        currencyCharged: pesos ? 'UYU' : 'BRL',
+        totalCharged: pesos ? input.clientTotalUyu! : input.clientTotalBrl,
+      }
+    }
     const reason = failureFromDatabase(error, trip.locale, error.code === 'TD006' ? await unservedZoneMessage() : null)
     if (reason.reason === 'unknown') console.error('create_order falhou', error.code)
     return reason

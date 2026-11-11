@@ -78,7 +78,9 @@ export type Failure = { ok: false; reason: FailureReason; message: string }
 export type QuoteResult = { ok: true; quote: CustomerQuote } | Failure
 
 export type CreateOrderResult =
-  | { ok: true; code: string; totalBrl: number; currencyCharged: 'BRL' | 'UYU'; totalCharged: number }
+  // `duplicate`: o mesmo pedido já tinha sido enviado há instantes (toque duplo). Não é falha: `code` é o do pedido
+  // que já existe e a tela segue para ele, sem criar outro.
+  | { ok: true; code: string; totalBrl: number; currencyCharged: 'BRL' | 'UYU'; totalCharged: number; duplicate?: true }
   | (Failure & { currentQuote?: { totalBrl: number; totalUyu: number | null } })
 
 // --- validação do que vem do navegador (entrada não confiável) --------------------------------------------------
