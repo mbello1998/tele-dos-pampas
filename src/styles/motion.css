@@ -1,9 +1,12 @@
-/* Movimento da landing que roda SEM JavaScript: é por onde o hero entra, antes mesmo da
-   hidratação, sem piscar. Só `transform` e `opacity`.
+/* Movimento que roda SEM JavaScript. É por onde a landing e a tela de pedido entram, antes mesmo da
+   hidratação, sem piscar. Só `transform` e `opacity` — com UMA exceção declarada, `stroke-dashoffset`
+   no desenho da malha, que repinta um SVG mas não dispara layout.
 
-   Tudo vive dentro de `no-preference`: com prefers-reduced-motion ligado nenhuma regra daqui se
-   aplica, e as palavras ficam onde o servidor as colocou, visíveis. */
+   TUDO vive dentro de um único `@media (prefers-reduced-motion: no-preference)`: com o movimento
+   desligado no sistema, nenhuma regra daqui se aplica e o conteúdo fica onde o servidor o colocou,
+   visível e completo. É um bloco só de propósito — é assim que isso continua auditável. */
 @media (prefers-reduced-motion: no-preference) {
+  /* ---- landing ------------------------------------------------------------------------------ */
   .palavra {
     display: inline-block;
     animation: palavra-sobe 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -24,5 +27,136 @@
       opacity: 1;
       transform: none;
     }
+  }
+
+  /* ---- tela de pedido (`/`) ------------------------------------------------------------------
+     Esta rota não baixa GSAP nem Lenis: o que se move nela é tudo daqui.                        */
+
+  /* A malha real das duas cidades se desenhando, UMA vez. Depois para: repintar milhares de
+     vértices a cada quadro, para sempre, é bateria de Android de entrada gasta em enfeite. */
+  .malha-traco {
+    stroke-dasharray: 100;
+    animation: malha-desenha 3.4s cubic-bezier(0.33, 1, 0.68, 1) both;
+    animation-delay: var(--atraso, 0.1s);
+  }
+
+  @keyframes malha-desenha {
+    from {
+      stroke-dashoffset: 100;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .malha-rio {
+    animation: aparece 1.2s ease-out 0.9s both;
+  }
+
+  @keyframes aparece {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* O motoboy atravessando a ponte: um nó de 9 px, `transform` e `opacity`, em laço lento. */
+  .malha-moto {
+    animation: atravessa 14s ease-in-out 3.4s infinite;
+  }
+
+  @keyframes atravessa {
+    0% {
+      opacity: 0;
+      transform: translate(0, 0);
+    }
+    6% {
+      opacity: 0.9;
+    }
+    44% {
+      opacity: 0.9;
+      transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px));
+    }
+    54% {
+      opacity: 0;
+      transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px));
+    }
+    100% {
+      opacity: 0;
+      transform: translate(0, 0);
+    }
+  }
+
+  /* O preço entrando. É o número pelo qual a pessoa abriu o app: chega com peso, não de fininho.
+     Toca de novo a cada valor novo, porque a chave do nó muda. */
+  .valor-entra {
+    animation: valor-chega 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes valor-chega {
+    from {
+      opacity: 0;
+      transform: translateY(0.3em) scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* O passo que acabou de abrir entra de baixo: ir de "de onde" para "para onde" é um movimento. */
+  .passo-entra,
+  .desdobra > * {
+    animation: passo-sobe 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes passo-sobe {
+    from {
+      opacity: 0;
+      transform: translateY(0.6rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* O detalhe do preço se desdobrando, linha por linha, sob o número. */
+  .desdobra dl > * {
+    animation: passo-sobe 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .desdobra dl > *:nth-child(1) {
+    animation-delay: 0.04s;
+  }
+  .desdobra dl > *:nth-child(2) {
+    animation-delay: 0.09s;
+  }
+  .desdobra dl > *:nth-child(3) {
+    animation-delay: 0.14s;
+  }
+  .desdobra dl > *:nth-child(4) {
+    animation-delay: 0.19s;
+  }
+  .desdobra dl > *:nth-child(5) {
+    animation-delay: 0.24s;
+  }
+  .desdobra dl > *:nth-child(6) {
+    animation-delay: 0.29s;
+  }
+}
+
+/* Barra de passos em guarda pampa: o trecho cumprido cresce da esquerda. É `transform` numa transição,
+   e fica fora do bloco acima porque `transition` não dispara sozinha — ela só responde a uma mudança de
+   estado que a pessoa provocou. Com o movimento desligado, a transição é removida logo abaixo. */
+.passo-barra span {
+  transform-origin: 0% 50%;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .passo-barra span {
+    transition: none;
   }
 }

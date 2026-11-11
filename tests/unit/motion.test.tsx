@@ -415,14 +415,19 @@ test('as animações alteram apenas transform e opacity', async () => {
     }
   }
 
-  // 3) No CSS, os @keyframes só mexem em transform e opacity.
+  // 3) No CSS, os @keyframes só mexem em transform e opacity. A exceção de pintura também vale aqui, e
+  //    por um nome só: `malha-desenha`, o desenho da malha da tela de pedido (`stroke-dashoffset`, que
+  //    repinta um SVG sem disparar layout). Qualquer outro quadro-chave com outra propriedade reprova.
   const css = read('src/styles/motion.css').replace(/\/\*[\s\S]*?\*\//g, '')
-  const blocos = [...css.matchAll(/@keyframes\s+[\w-]+\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)]
+  const blocos = [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)]
   expect(blocos.length).toBeGreaterThan(0)
-  for (const [, corpo] of blocos) {
+  const comDashCss: string[] = []
+  for (const [, nome, corpo] of blocos) {
     const props = [...corpo.matchAll(/([\w-]+)\s*:/g)].map((m) => m[1])
-    expect(props.filter((p) => p !== 'transform' && p !== 'opacity')).toEqual([])
+    if (props.includes('stroke-dashoffset')) comDashCss.push(nome)
+    expect(props.filter((p) => p !== 'transform' && p !== 'opacity' && p !== 'stroke-dashoffset')).toEqual([])
   }
+  expect(comDashCss).toEqual(['malha-desenha'])
 })
 
 // ---------------------------------------------------------------------------------------------

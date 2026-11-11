@@ -12,9 +12,10 @@ export const POSTER_SRC = '/hero/poster-malha.svg'
 const display = 'font-[family-name:var(--font-display)]'
 const delay = (seconds: number) => ({ '--delay': `${seconds}s` }) as CSSProperties
 
+// A landing em português vive em /sobre desde que `/` passou a ser a tela de pedido; a espanhola, em /es.
 const OTHER_LOCALE = {
   'pt-BR': { href: '/es', code: 'ES', lang: 'es-UY' },
-  'es-UY': { href: '/', code: 'PT', lang: 'pt-BR' },
+  'es-UY': { href: '/sobre', code: 'PT', lang: 'pt-BR' },
 } as const
 
 /**

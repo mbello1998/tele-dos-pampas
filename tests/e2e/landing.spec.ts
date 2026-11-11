@@ -9,11 +9,15 @@ const rolarAteOFim = async (page: Page) => {
   await page.waitForTimeout(1200)
 }
 
+// A landing deixou de ser `/` em 10/11/2026: `/` passou a ser a tela de pedido (a proposta do produto é
+// pedir uma corrida ao abrir). A landing institucional vive em /sobre, e é lá que estes testes olham.
+const LANDING = '/sobre'
+
 test.describe('landing em 360 px', () => {
   test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true })
 
   test('landing não tem rolagem horizontal em viewport de 360 px', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' })
+    await page.goto(LANDING, { waitUntil: 'networkidle' })
     const larguras = () =>
       page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }))
     let w = await larguras()
@@ -32,7 +36,7 @@ test.describe('landing em 360 px', () => {
     page.on('response', (r) => {
       if (r.url().includes('/data/')) buscados.push(r.url())
     })
-    await page.goto('/', { waitUntil: 'networkidle' })
+    await page.goto(LANDING, { waitUntil: 'networkidle' })
     expect(buscados).toEqual([])
     await rolarAteOFim(page)
     expect(buscados.some((u) => u.endsWith('/data/grid-simplified.json'))).toBe(true)
@@ -46,7 +50,7 @@ test.describe('prefers-reduced-motion', () => {
   test('mantém o conteúdo visível e não baixa GSAP, Lenis nem o dataset', async ({ page }) => {
     const pedidos: string[] = []
     page.on('response', (r) => pedidos.push(r.url()))
-    await page.goto('/', { waitUntil: 'networkidle' })
+    await page.goto(LANDING, { waitUntil: 'networkidle' })
     await rolarAteOFim(page)
 
     await expect(page.locator('h1')).toBeVisible()
@@ -69,7 +73,7 @@ test.describe('movimento liberado, desktop', () => {
   test('Lenis entra por import dinâmico só com movimento liberado e ponteiro fino', async ({ page }) => {
     const pedidos: string[] = []
     page.on('response', (r) => pedidos.push(r.url()))
-    await page.goto('/', { waitUntil: 'networkidle' })
+    await page.goto(LANDING, { waitUntil: 'networkidle' })
     await page.waitForTimeout(800)
     expect(pedidos.some((u) => /lenis/.test(u))).toBe(true)
     expect(await page.evaluate(() => document.documentElement.classList.contains('lenis'))).toBe(true)

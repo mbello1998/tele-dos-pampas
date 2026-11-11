@@ -8,7 +8,7 @@ export const revalidate = 300
 
 export async function generateMetadata(): Promise<Metadata> {
   const content = await loadLandingContent('es-UY')
-  return { description: content.subheadline, alternates: { languages: { 'pt-BR': '/' } } }
+  return { description: content.subheadline, alternates: { languages: { 'pt-BR': '/sobre' } } }
 }
 
 export default async function Inicio() {
