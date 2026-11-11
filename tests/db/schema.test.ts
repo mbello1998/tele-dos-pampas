@@ -101,21 +101,23 @@ describe('seeds', () => {
     ])
   })
 
-  test('pricing_rules padrão tem base 10.00, included_km 2.0, per_km 2.50, min 10.00', async () => {
+  test('pricing_rules padrão: balcão 10.00 (delivery 9.00) e convênio de delivery 8.00; uma em vigor por (cidade, kind, público)', async () => {
     // As regras são versionadas por data: contar linhas quebraria no dia em que existir uma segunda versão.
-    // O que vale é a versão EM VIGOR hoje (data civil das cidades): exatamente uma por (cidade, kind), seis no total.
+    // O que vale é a versão EM VIGOR hoje (data civil das cidades): exatamente uma por (cidade, kind, público), oito no total
+    // (seis do balcão e as duas do convênio de delivery, 0031).
     const { rows } = await db.query(
       `select * from pricing_rules
        where valid_from <= (now() at time zone 'America/Montevideo')::date
          and (valid_to is null or valid_to > (now() at time zone 'America/Montevideo')::date)`,
     )
-    expect(new Set(rows.map((r) => `${r.city}/${r.kind}`)).size).toBe(6)
-    expect(rows.length).toBe(6)
+    expect(new Set(rows.map((r) => `${r.city}/${r.kind}/${r.audience}`)).size).toBe(8)
+    expect(rows.length).toBe(8)
     for (const r of rows) {
-      expect(r.base_fare_brl).toBe('10.00')
+      const fare = r.audience === 'merchant' ? '8.00' : r.kind === 'delivery' ? '9.00' : '10.00'
+      expect(r.base_fare_brl, `${r.city}/${r.kind}/${r.audience}`).toBe(fare)
       expect(Number(r.included_km)).toBe(2)
-      expect(r.per_km_brl).toBe('2.50')
-      expect(r.min_fare_brl).toBe('10.00')
+      expect(r.per_km_brl).toBe(r.audience === 'merchant' ? '2.20' : '2.50')
+      expect(r.min_fare_brl).toBe(fare)
       expect(r.night_surcharge_brl).toBe('3.00')
       expect(r.night_from).toBe('23:00:00')
       expect(r.night_to).toBe('05:00:00')
@@ -147,7 +149,7 @@ describe('seeds', () => {
 
     // a new version that starts after the old one is closed is allowed
     await db.query(
-      `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'delivery' and valid_to is null`,
+      `update pricing_rules set valid_to = current_date + 10 where city = 'quarai' and kind = 'delivery' and audience = 'client' and valid_to is null`,
     )
     await db.query(
       `insert into pricing_rules (city, kind, base_fare_brl, included_km, per_km_brl, min_fare_brl,
