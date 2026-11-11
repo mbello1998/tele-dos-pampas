@@ -163,7 +163,7 @@ describe('políticas RLS', () => {
       ['order_commissions', 'true', ['merchant', 'admin']], // never client, courier or fleet
       ['order_items', 'true', ['client', 'merchant', 'admin']], // never fleet, never courier (unit prices = the shop's revenue)
       ['order_events', 'true', ['client', 'courier', 'merchant', 'fleet', 'admin']],
-      ['courier_positions', 'true', ['courier', 'admin']],
+      ['courier_positions', 'true', ['client', 'courier', 'fleet', 'admin']], // client: own order's courier while active (0025); fleet: its couriers, last 15 min; never merchant or anon
       ['pricing_rules', 'true', ['client', 'courier', 'fleet', 'admin']], // never merchant
       ['fx_rates', 'true', ['client', 'courier', 'merchant', 'fleet', 'admin']],
       ['settings', `key = 'rls_fixture_private'`, ['admin']],
@@ -327,8 +327,16 @@ describe('políticas RLS', () => {
       expectForbidden(await attempt(db, `insert into order_events (order_id, to_status) values ($1, 'entregue')`, [ID.oQueueQ]), 'insert order_events')
     })
 
-    test('client NÃO lê couriers, fleets, posições de motoboy nem audit_log', async () => {
-      for (const t of ['couriers', 'fleets', 'courier_positions', 'audit_log']) expect(await count(clientA, t), t).toBe(0)
+    test('client NÃO lê couriers, fleets nem audit_log; lê a posição do motoboy do próprio pedido só enquanto ele está ativo (0025)', async () => {
+      for (const t of ['couriers', 'fleets', 'audit_log']) expect(await count(clientA, t), t).toBe(0)
+      // permissão: oFleet1 (cliente A, motoboy Q1) está 'coletado', status ativo
+      expect(await readAs(db, clientA, 'select courier_id from courier_positions', 'courier_id')).toEqual([ID.courierQ1])
+      // negações: outro cliente, outra frota, merchant e pedido entregue
+      expect(await count(clientB, 'courier_positions')).toBe(0)
+      expect(await count(fleet2, 'courier_positions')).toBe(0)
+      expect(await count(merchant1, 'courier_positions')).toBe(0)
+      await asOwner(db, `update orders set status = 'entregue' where id = $1`, [ID.oFleet1])
+      expect(await count(clientA, 'courier_positions')).toBe(0)
     })
   })
 
