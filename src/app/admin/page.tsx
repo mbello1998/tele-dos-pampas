@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireRole } from '@/lib/auth/session'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export const metadata: Metadata = { title: 'Tele dos Pampas: admin', robots: { index: false } }
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = { title: 'Tele dos Pampas: admin', robots: { i
 export default async function AdminHome() {
   await requireRole('admin', { next: '/admin' })
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
+    <>
+      <ScreenBackdrop name="chamados" opacity={0.2} />
+      <main className="mx-auto max-w-3xl px-4 py-16">
       <h1 className="text-3xl font-bold">Painel do admin</h1>
       <p className="mt-6">
         <Link href="/admin/despacho" className="underline underline-offset-4">
@@ -18,5 +21,6 @@ export default async function AdminHome() {
         </Link>
       </p>
     </main>
+    </>
   )
 }

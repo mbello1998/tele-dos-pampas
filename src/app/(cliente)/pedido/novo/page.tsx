@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { CheckoutForm, type CheckoutAddress } from './CheckoutForm'
 import { copyT } from './copy'
 import { CUSTOMER_KINDS, type OrderKind } from './order-core'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export const metadata: Metadata = { title: 'Tele dos Pampas', robots: { index: false } }
 export const dynamic = 'force-dynamic'
@@ -35,9 +36,12 @@ export default async function NovoPedido({ searchParams }: { searchParams: Promi
   }))
 
   return (
-    <main className="mx-auto w-full max-w-xl px-4 py-6">
+    <>
+      <ScreenBackdrop name="pedido" />
+      <main className="mx-auto w-full max-w-xl px-4 py-6">
       <h1 className="mb-5 text-2xl font-extrabold">{copyT('title', locale)}</h1>
       <CheckoutForm kind={kind} locale={locale} currencyPref={profile.currencyPref} addresses={addresses} />
     </main>
+    </>
   )
 }

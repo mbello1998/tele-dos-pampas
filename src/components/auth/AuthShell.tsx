@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { display } from '@/lib/fonts'
 import type { Locale } from '@/lib/i18n'
 import { LocaleSwitch } from './LocaleSwitch'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 /**
  * Moldura das telas de conta. O idioma da tela vai em `lang` do bloco (o <html> do layout raiz é estático
@@ -24,7 +25,9 @@ export function AuthShell({
   children: ReactNode
 }) {
   return (
-    <div lang={locale} className={`${display.variable} min-h-[100svh]`}>
+    <>
+      <ScreenBackdrop name="conta" />
+      <div lang={locale} className={`${display.variable} min-h-[100svh]`}>
       <header className="mx-auto flex max-w-md items-center justify-between px-4 py-3">
         <Link href="/" className="font-[family-name:var(--font-display)] text-xl font-extrabold uppercase tracking-wide">
           Tele dos Pampas
@@ -39,5 +42,6 @@ export function AuthShell({
         <div className={title ? 'mt-6' : ''}>{children}</div>
       </main>
     </div>
+    </>
   )
 }

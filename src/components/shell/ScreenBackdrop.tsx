@@ -34,6 +34,12 @@ function veil(top: number, bottom: number, steps = 9): string {
 const ART = {
   chamados: { retrato: '/arte/fundo-chamados-retrato-1536.webp', paisagem: '/arte/fundo-chamados-paisagem-1920.webp' },
   loja: { retrato: '/arte/fundo-loja-retrato-1536.webp', paisagem: '/arte/fundo-loja-paisagem-1920.webp' },
+  /** Entrar, aguardando, onboarding, perfil: a porteira meio aberta, que é o que essas telas são. */
+  conta: { retrato: '/arte/fundo-conta-retrato-1536.webp', paisagem: '/arte/fundo-conta-paisagem-1920.webp' },
+  /** Pedir, acompanhar, cadastrar endereço: a ponte à noite, que é o que liga as duas cidades. */
+  pedido: { retrato: '/arte/fundo-pedido-retrato-1536.webp', paisagem: '/arte/fundo-pedido-paisagem-1920.webp' },
+  /** Institucional (/sobre, /es): a mesma arte da tela inicial, de propósito — é a mesma casa. */
+  pampa: { retrato: '/arte/pampa-fundo-1536.webp', paisagem: '/arte/pampa-fundo-1536.webp' },
 } as const
 
 export type BackdropName = keyof typeof ART

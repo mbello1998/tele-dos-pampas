@@ -4,6 +4,7 @@ import { OrderRow, type DispatchOrder } from '@/components/admin/OrderRow'
 import { requireRole } from '@/lib/auth/session'
 import { createClient } from '@/lib/supabase/server'
 import { CLOSED_STATUSES, type TransitionRow } from './transitions'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export const metadata: Metadata = { title: 'Despacho: Tele dos Pampas', robots: { index: false } }
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,9 @@ export default async function Despacho({ searchParams }: { searchParams: Promise
   const people = (couriers.data ?? []) as DispatchCourier[]
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
+    <>
+      <ScreenBackdrop name="chamados" opacity={0.2} />
+      <main className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-bold">Despacho</h1>
       <p className="mt-1 text-sm text-white/65">Pedidos ativos. Toda ação do admin exige um motivo e fica registrada.</p>
       {erro && ERRORS[erro] ? (
@@ -75,5 +78,6 @@ export default async function Despacho({ searchParams }: { searchParams: Promise
       </table>
       {!failed && list.length === 0 ? <p className="mt-6 text-white/70" data-testid="empty">Nenhum pedido ativo.</p> : null}
     </main>
+    </>
   )
 }

@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { Landing } from '@/components/landing/Landing'
 import { loadLandingContent } from '@/lib/landing/load'
 import { display } from '@/lib/fonts'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export const revalidate = 300
 
@@ -16,8 +17,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Sobre() {
   const content = await loadLandingContent('pt-BR')
   return (
-    <div className={display.variable}>
+    <>
+      <ScreenBackdrop name="pampa" />
+      <div className={display.variable}>
       <Landing content={content} locale="pt-BR" />
     </div>
+    </>
   )
 }

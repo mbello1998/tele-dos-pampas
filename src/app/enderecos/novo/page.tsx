@@ -7,11 +7,14 @@ import Link from 'next/link'
 import { useState } from 'react'
 import type { Address } from '@/actions/addresses'
 import { AddressForm } from '@/components/address/AddressForm'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export default function NovoEnderecoPage() {
   const [saved, setSaved] = useState<Address | null>(null)
   return (
-    <main className="mx-auto grid max-w-xl gap-6 px-4 py-8">
+    <>
+      <ScreenBackdrop name="pedido" />
+      <main className="mx-auto grid max-w-xl gap-6 px-4 py-8">
       <h1 className="text-2xl font-extrabold">Novo endereço</h1>
       {saved ? (
         <div role="status" className="grid gap-3">
@@ -26,5 +29,6 @@ export default function NovoEnderecoPage() {
         <AddressForm onDone={setSaved} />
       )}
     </main>
+    </>
   )
 }

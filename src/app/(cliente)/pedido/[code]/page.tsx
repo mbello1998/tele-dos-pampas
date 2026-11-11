@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 import { loadTracking } from './data'
 import { fixtureFor } from './fixtures'
 import { TrackingView } from './TrackingView'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 // Posição e andamento são por pedido e por pessoa: nunca em cache compartilhado.
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,13 @@ export default async function PedidoPage({ params }: { params: Promise<{ code: s
   const code = decodeURIComponent(raw).trim().toUpperCase()
 
   const fixture = fixtureFor(code, (await headers()).get('host'))
-  if (fixture) return <TrackingView data={fixture} locale="pt-BR" />
+  if (fixture)
+    return (
+      <>
+        <ScreenBackdrop name="pedido" />
+        <TrackingView data={fixture} locale="pt-BR" />
+      </>
+    )
 
   // Qualquer papel pode ter feito um pedido; o que a pessoa enxerga quem decide é o RLS (só o próprio pedido).
   await requireRole(USER_ROLES, { next: `/pedido/${code}` })
@@ -26,5 +33,10 @@ export default async function PedidoPage({ params }: { params: Promise<{ code: s
   const data = await loadTracking(supabase, code)
   // Pedido que não existe e pedido de outra pessoa são indistinguíveis de propósito.
   if (!data) notFound()
-  return <TrackingView data={data} locale={await getLocale()} />
+  return (
+    <>
+      <ScreenBackdrop name="pedido" />
+      <TrackingView data={data} locale={await getLocale()} />
+    </>
+  )
 }
