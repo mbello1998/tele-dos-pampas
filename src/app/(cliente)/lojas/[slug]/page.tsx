@@ -3,11 +3,15 @@
 // O parâmetro `slug` é o id da loja (uuid): `merchants_public` não tem coluna de slug. Valida o formato antes de
 // consultar, porque um id malformado faria o Postgres responder 22P02 e a página cair em erro em vez de 404.
 //
+// A VITRINE É PÚBLICA (migration 0028): sem login. Visitante anônimo vê o cardápio em reais; quem entrou vê na moeda
+// do perfil. O carrinho é estado do navegador, então adicionar também não exige conta; o login é exigido na hora de
+// PEDIR (/pedido/novo). Nada aqui pressupõe sessão.
+//
 // Preço aqui é VITRINE (preço canônico em BRL, convertido para pesos só para exibir). Quem cota o pedido é o
 // servidor (quote_order); o que o cliente vê neste cardápio nunca é o que ele paga.
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { requireRole } from '@/lib/auth/session'
+import { getSession } from '@/lib/auth/session'
 import { ItemCard } from '@/components/catalog/ItemCard'
 import { Cart } from '@/components/order/Cart'
 import { buildMenu, MERCHANT_COLUMNS, type CategoryRow, type ItemRow, type MerchantRow } from '@/lib/cart/catalog-map'
@@ -34,7 +38,8 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   if (!UUID.test(slug)) notFound()
 
-  const { profile } = await requireRole('client', { next: `/lojas/${slug}` })
+  const session = await getSession() // null para visitante anônimo
+  const currency = session?.profile.currencyPref ?? 'BRL'
   const locale = await getLocale()
   const supabase = await createClient()
 
@@ -82,7 +87,7 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
       </header>
 
       <div className="mt-3">
-        <FxNote currency={profile.currencyPref} fx={fx} locale={locale} />
+        <FxNote currency={currency} fx={fx} locale={locale} />
       </div>
 
       {sections.length === 0 ? (
@@ -93,7 +98,7 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
             <h2 className="text-lg font-semibold">{section.name ?? catalogT('catalog.uncategorized', locale)}</h2>
             <div className="mt-3 space-y-3">
               {section.items.map((item) => (
-                <ItemCard key={item.id} item={item} merchant={cartMerchant} currency={profile.currencyPref} locale={locale} fx={fx} />
+                <ItemCard key={item.id} item={item} merchant={cartMerchant} currency={currency} locale={locale} fx={fx} />
               ))}
             </div>
           </section>
@@ -101,7 +106,7 @@ export default async function Cardapio({ params }: { params: Promise<{ slug: str
       )}
 
       <div id="carrinho" className="mt-8">
-        <Cart currency={profile.currencyPref} locale={locale} fx={fx} checkoutHref="/pedido/novo" />
+        <Cart currency={currency} locale={locale} fx={fx} checkoutHref="/pedido/novo" />
       </div>
     </main>
   )

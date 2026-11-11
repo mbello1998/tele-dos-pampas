@@ -1,10 +1,11 @@
 // Lojas: a vitrine do cliente. Server Component.
 //
 // Lê `merchants_public` (a view), NUNCA `merchants`: a tabela carrega commission_pct, o acordo comercial da
-// plataforma com a loja, e não é lida por cliente (RLS). A view só tem as colunas voltadas ao cliente e só
+// plataforma com a loja, e não é lida por ninguém da API (RLS). A view só tem as colunas voltadas ao cliente e só
 // devolve lojas aprovadas.
+//
+// A VITRINE É PÚBLICA (migration 0028): não exige login. Entrar é exigido para PEDIR, não para olhar o cardápio.
 import type { Metadata } from 'next'
-import { requireRole } from '@/lib/auth/session'
 import { MerchantCard } from '@/components/catalog/MerchantCard'
 import { catalogT } from '@/lib/cart/copy'
 import { MERCHANT_COLUMNS, type MerchantRow } from '@/lib/cart/catalog-map'
@@ -18,7 +19,6 @@ export const metadata: Metadata = { title: 'Tele dos Pampas', robots: { index: f
 export const dynamic = 'force-dynamic'
 
 export default async function Lojas() {
-  await requireRole('client', { next: '/lojas' })
   const locale = await getLocale()
   const supabase = await createClient()
 
