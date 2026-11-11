@@ -876,9 +876,11 @@ describe('aceite atômico: dois aceites simultâneos deixam o pedido com UM só 
          ('${RACE.fleetOwner}', 'fleet', 'Dono corrida', 'active', 'quarai')
        on conflict (id) do update set role = excluded.role, status = excluded.status;
        insert into public.fleets (id, owner_id, name, city, status) values ('${RACE.fleet}', '${RACE.fleetOwner}', 'Frota corrida', 'quarai', 'approved');
-       insert into public.couriers (profile_id, vehicle, base_city, fleet_id, status) values
-         ('${RACE.courier1}', 'moto', 'quarai', '${RACE.fleet}', 'approved'),
-         ('${RACE.courier2}', 'moto', 'quarai', null, 'approved');
+       -- accepts_passenger / accepts_cross_border: since 0032 the claim itself refuses a courier who declined that
+       -- kind of job, so a racing courier must have said yes for the race (not the refusal) to be what is tested.
+       insert into public.couriers (profile_id, vehicle, base_city, fleet_id, status, accepts_passenger, accepts_cross_border) values
+         ('${RACE.courier1}', 'moto', 'quarai', '${RACE.fleet}', 'approved', true, true),
+         ('${RACE.courier2}', 'moto', 'quarai', null, 'approved', true, true);
        insert into public.orders (id, kind, client_id, merchant_id, pickup_address, dropoff_address, status, total_brl, total_charged, payment_method) values
          ${orderRows('aguardando_motoboy', 'courier', 0)},
          ${orderRows('aguardando_motoboy', 'courier', 1)},

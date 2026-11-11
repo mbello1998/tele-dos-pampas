@@ -1518,7 +1518,9 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     const T = E.token!
     const v = await rest('courier_orders?select=*&order=created_at', T)
     expect(v.status).toBe(200)
-    const byId = Object.fromEntries(v.json.map((r: { id: string }) => [r.id, r]))
+    // os chamados de exemplo do seed (código EXEM..., 0032) estão na fila de Quarai de propósito e não fazem parte do cenário
+    const own = v.json.filter((r: { code: string }) => !r.code.startsWith('EXEM'))
+    const byId = Object.fromEntries(own.map((r: { id: string }) => [r.id, r]))
     expect(Object.keys(byId).sort()).toEqual(sorted(orderK, orderQ)) // o que ele carrega + a fila de Quarai
     // o pedido que carrega: dinheiro, total 50, troco para 100, taxa de entrega 10
     expect(byId[orderK]).toMatchObject({ total_charged: 50, change_for: 100, payment_method: 'dinheiro_brl', currency_charged: 'BRL', delivery_fee_brl: 10 })
