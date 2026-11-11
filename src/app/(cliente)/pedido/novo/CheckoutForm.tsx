@@ -23,7 +23,7 @@ type Props = {
   addresses: CheckoutAddress[]
 }
 
-const KINDS: OrderKind[] = [...CUSTOMER_KINDS]
+const KINDS = [...CUSTOMER_KINDS] as OrderKind[]
 const IDS = { dropoff: 'co-dropoff', pickup: 'co-pickup', change: 'co-change', notes: 'co-notes' }
 
 export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
@@ -48,7 +48,7 @@ export function CheckoutForm({ kind, locale, currencyPref, addresses }: Props) {
 
   // A intenção que vai ao servidor. Só ids: nenhum preço, distância ou coordenada.
   const intent = useMemo(
-    () => ({ kind, merchantId: null, items: [], pickupAddressId: pickupId, dropoffAddressId: dropoffId }),
+    () => ({ kind, pickupAddressId: pickupId, dropoffAddressId: dropoffId }),
     [kind, pickupId, dropoffId],
   )
 

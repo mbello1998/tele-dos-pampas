@@ -46,7 +46,7 @@ function serviceClient(): SupabaseClient {
 type Trip = {
   clientId: string
   locale: Locale
-  pickup: Record<string, unknown> | null // courier e ride; em delivery é a loja, lida pelo banco
+  pickup: Record<string, unknown>
   dropoff: Record<string, unknown>
   distanceM: number
   routeSource: 'osrm' | 'haversine'
@@ -60,35 +60,23 @@ async function resolveTrip(input: QuoteInput): Promise<Trip | Failure> {
   if (session.profile.status !== 'active' || session.profile.role !== 'client') return failure('forbidden', locale)
 
   // Endereços: lidos com a sessão do cliente, então o RLS só devolve os DELE. Id de outra pessoa = não encontrado.
-  const wanted = [...new Set([input.dropoffAddressId, ...(input.pickupAddressId ? [input.pickupAddressId] : [])])]
+  const wanted = [...new Set([input.dropoffAddressId, input.pickupAddressId])]
   const supabase = await createClient()
   const { data, error } = await supabase.from('addresses').select(ADDRESS_COLUMNS).in('id', wanted)
   if (error) throw new Error(`pedido: leitura de addresses falhou (${error.code ?? 'sem código'})`)
   const rows = new Map((data as unknown as AddressRow[]).map((r) => [r.id, r]))
   const dropoff = rows.has(input.dropoffAddressId) ? addressToJson(rows.get(input.dropoffAddressId)!) : null
-  const pickup = input.pickupAddressId && rows.has(input.pickupAddressId) ? addressToJson(rows.get(input.pickupAddressId)!) : null
-  if (!dropoff || (input.kind !== 'delivery' && !pickup)) return failure('address_not_found', locale)
+  const pickup = rows.has(input.pickupAddressId) ? addressToJson(rows.get(input.pickupAddressId)!) : null
+  if (!dropoff || !pickup) return failure('address_not_found', locale)
 
-  // Origem: a loja (do banco) em delivery; o endereço de coleta nos outros.
-  let origin: { lat: number; lng: number }
-  if (input.kind === 'delivery') {
-    const { data: m, error: mErr } = await serviceClient()
-      .from('merchants')
-      .select('status,lat,lng')
-      .eq('id', input.merchantId)
-      .maybeSingle()
-    if (mErr) throw new Error(`pedido: leitura de merchants falhou (${mErr.code ?? 'sem código'})`)
-    if (!m || m.status !== 'approved' || m.lat === null || m.lng === null) return failure('merchant_unavailable', locale)
-    origin = { lat: Number(m.lat), lng: Number(m.lng) }
-  } else {
-    origin = { lat: pickup!.lat as number, lng: pickup!.lng as number }
-  }
-
-  const route = await routeDistance(origin, { lat: dropoff.lat as number, lng: dropoff.lng as number })
+  const route = await routeDistance(
+    { lat: pickup.lat as number, lng: pickup.lng as number },
+    { lat: dropoff.lat as number, lng: dropoff.lng as number },
+  )
   return {
     clientId: session.user.id,
     locale,
-    pickup: input.kind === 'delivery' ? null : pickup,
+    pickup,
     dropoff,
     distanceM: route.meters,
     routeSource: route.source,
@@ -102,9 +90,6 @@ async function unservedZoneMessage(): Promise<Partial<Record<Locale, string>> | 
   const v = data?.value
   return v && typeof v === 'object' ? (v as Partial<Record<Locale, string>>) : null
 }
-
-const itemsOf = (input: QuoteInput) =>
-  input.kind === 'delivery' ? input.items.map((i) => ({ itemId: i.itemId, qty: i.qty, optionIds: i.optionIds })) : null
 
 /**
  * A cotação que a tela mostra antes de confirmar. É a mesma conta que create_order refaz depois: o total que o
@@ -120,8 +105,8 @@ export async function quoteOrder(raw: unknown): Promise<QuoteResult> {
     p_kind: input.kind,
     p_pickup: trip.pickup,
     p_dropoff: trip.dropoff,
-    p_merchant: input.merchantId,
-    p_items: itemsOf(input),
+    p_merchant: null,
+    p_items: null,
     p_at: new Date().toISOString(),
     p_distance_m: trip.distanceM,
     p_route_source: trip.routeSource,
@@ -145,8 +130,8 @@ export async function createOrder(raw: unknown): Promise<CreateOrderResult> {
     p_kind: input.kind,
     p_pickup: trip.pickup,
     p_dropoff: trip.dropoff,
-    p_merchant: input.merchantId,
-    p_items: itemsOf(input),
+    p_merchant: null,
+    p_items: null,
     p_payment_method: input.paymentMethod,
     p_change_for: input.changeFor,
     p_client_total_brl: input.clientTotalBrl,

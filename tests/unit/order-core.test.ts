@@ -63,48 +63,26 @@ describe('toCustomerQuote: o que o navegador recebe', () => {
   })
 })
 
-const DELIVERY = {
-  kind: 'delivery',
-  merchantId: U(10),
-  items: [{ itemId: U(11), qty: 2, optionIds: [U(12)] }],
-  dropoffAddressId: U(20),
-}
+// A entrega da LOJA (delivery) não passa mais por aqui: tem a própria ação e o próprio parser (src/lib/pricing/shop.ts).
+const COURIER = { kind: 'courier', pickupAddressId: U(21), dropoffAddressId: U(20) }
 
 describe('parseQuoteInput: só intenção atravessa', () => {
-  test('descarta preço, total, delta, distância e coordenada mandados pelo navegador', () => {
-    const out = parseQuoteInput({
-      ...DELIVERY,
-      distanceM: 1,
-      totalBrl: 0.01,
-      dropoff: { lat: 0, lng: 0 },
-      items: [{ itemId: U(11), qty: 1, optionIds: [], priceBrl: 0.01, unitPrice: 0, delta: -9 }],
-    })
-    expect(out).toEqual({
-      kind: 'delivery',
-      merchantId: U(10),
-      items: [{ itemId: U(11), qty: 1, optionIds: [] }],
-      pickupAddressId: null,
-      dropoffAddressId: U(20),
-    })
+  test('descarta preço, total, distância e coordenada mandados pelo navegador', () => {
+    const out = parseQuoteInput({ ...COURIER, distanceM: 1, totalBrl: 0.01, dropoff: { lat: 0, lng: 0 }, priceBrl: 0.01 })
+    expect(out).toEqual({ kind: 'courier', pickupAddressId: U(21), dropoffAddressId: U(20) })
   })
 
-  test('delivery exige loja e itens; qty inteira de 1 a 99; ids são uuid', () => {
-    expect(parseQuoteInput({ ...DELIVERY, merchantId: null })).toBeNull()
-    expect(parseQuoteInput({ ...DELIVERY, items: [] })).toBeNull()
-    for (const qty of [0, 100, 1.5, '2', NaN, null]) {
-      expect(parseQuoteInput({ ...DELIVERY, items: [{ itemId: U(11), qty }] }), String(qty)).toBeNull()
-    }
-    expect(parseQuoteInput({ ...DELIVERY, items: [{ itemId: 'x', qty: 1 }] })).toBeNull()
-    expect(parseQuoteInput({ ...DELIVERY, items: [{ itemId: U(11), qty: 1, optionIds: ['nope'] }] })).toBeNull()
-    expect(parseQuoteInput({ ...DELIVERY, dropoffAddressId: 'casa' })).toBeNull()
-    expect(parseQuoteInput({ ...DELIVERY, kind: 'drone' })).toBeNull()
+  test('delivery não é aceita no pedido do cliente; ids são uuid; tipo desconhecido e lixo são recusados', () => {
+    expect(parseQuoteInput({ ...COURIER, kind: 'delivery' })).toBeNull()
+    expect(parseQuoteInput({ ...COURIER, dropoffAddressId: 'casa' })).toBeNull()
+    expect(parseQuoteInput({ ...COURIER, kind: 'drone' })).toBeNull()
     expect(parseQuoteInput(null)).toBeNull()
-    expect(parseQuoteInput([DELIVERY])).toBeNull()
+    expect(parseQuoteInput([COURIER])).toBeNull()
   })
 
   test('courier e ride exigem o endereço de coleta, e não aceitam loja nem itens', () => {
-    const base = { kind: 'courier', dropoffAddressId: U(20), pickupAddressId: U(21) }
-    expect(parseQuoteInput(base)).toMatchObject({ kind: 'courier', merchantId: null, items: [], pickupAddressId: U(21) })
+    const base = COURIER
+    expect(parseQuoteInput(base)).toEqual({ kind: 'courier', pickupAddressId: U(21), dropoffAddressId: U(20) })
     expect(parseQuoteInput({ ...base, kind: 'ride' })).not.toBeNull()
     expect(parseQuoteInput({ ...base, pickupAddressId: undefined })).toBeNull()
     expect(parseQuoteInput({ ...base, merchantId: U(10) })).toBeNull()
@@ -113,7 +91,7 @@ describe('parseQuoteInput: só intenção atravessa', () => {
 })
 
 describe('parseCreateInput', () => {
-  const good = { ...DELIVERY, paymentMethod: 'pix', changeFor: null, clientTotalBrl: 84, clientTotalUyu: 618, notes: null }
+  const good = { ...COURIER, paymentMethod: 'pix', changeFor: null, clientTotalBrl: 84, clientTotalUyu: 618, notes: null }
   test('aceita o pedido bem formado', () => {
     expect(parseCreateInput(good)).toMatchObject({ paymentMethod: 'pix', clientTotalBrl: 84, clientTotalUyu: 618, changeFor: null })
   })

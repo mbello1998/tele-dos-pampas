@@ -2,9 +2,10 @@
 // tradução das recusas do banco. Sem rede e sem next/*, para ser testável em Node (tests/unit/order-core.test.ts).
 // As Server Actions (src/actions/orders.ts) só costuram isto ao banco.
 //
-// O QUE O NAVEGADOR MANDA: intenção (tipo, loja, itens com opções, ids de endereço, forma de pagamento) e o total
-// que ele VIU. Nunca preço de item, distância, coordenada nem papel: preço vem do banco, distância do servidor,
-// coordenada da linha de `addresses` do próprio cliente, papel da sessão.
+// O QUE O NAVEGADOR MANDA: intenção (tipo, ids de endereço, forma de pagamento) e o total que ele VIU. Nunca
+// preço, distância, coordenada nem papel: preço vem do banco, distância do servidor, coordenada da linha de
+// `addresses` do próprio cliente, papel da sessão. A entrega da LOJA (`delivery`) não passa por aqui: tem a
+// própria ação (src/actions/shop-delivery.ts) e o próprio parser (src/lib/pricing/shop.ts).
 //
 // O QUE VOLTA PARA O NAVEGADOR: `CustomerQuote`, um subconjunto escolhido campo a campo. O ServerQuote inteiro
 // carrega a comissão da loja e a taxa e o spread de câmbio, e nunca sai do servidor.
@@ -20,15 +21,10 @@ export const ORDER_KINDS: readonly OrderKind[] = ['delivery', 'courier', 'ride']
 export const CUSTOMER_KINDS: readonly OrderKind[] = ['ride', 'courier']
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ['dinheiro_brl', 'dinheiro_uyu', 'pix']
 
-export type OrderItemInput = { itemId: string; qty: number; optionIds: string[] }
-
 /** O que basta para cotar. */
 export type QuoteInput = {
-  kind: OrderKind
-  merchantId: string | null
-  items: OrderItemInput[]
-  /** courier e ride: de onde sai. Em delivery é ignorado (a origem é a loja, do banco). */
-  pickupAddressId: string | null
+  kind: 'courier' | 'ride'
+  pickupAddressId: string
   dropoffAddressId: string
 }
 
@@ -92,41 +88,18 @@ const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const isMoney = (v: unknown, max: number): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max
 
-export const MAX_ITEM_LINES = 50
-export const MAX_OPTIONS_PER_LINE = 30
 export const MAX_NOTES = 500
 
 /** Devolve a entrada limpa (só os campos conhecidos), ou null. Nada que não esteja na lista atravessa. */
 export function parseQuoteInput(raw: unknown): QuoteInput | null {
   if (!isRecord(raw)) return null
   const kind = raw.kind
-  if (!ORDER_KINDS.includes(kind as OrderKind)) return null
-  if (!isUuid(raw.dropoffAddressId)) return null
-
-  let merchantId: string | null = null
-  let items: OrderItemInput[] = []
-  let pickupAddressId: string | null = null
-
-  if (kind === 'delivery') {
-    if (!isUuid(raw.merchantId)) return null
-    merchantId = raw.merchantId
-    if (!Array.isArray(raw.items) || raw.items.length === 0 || raw.items.length > MAX_ITEM_LINES) return null
-    for (const line of raw.items as unknown[]) {
-      if (!isRecord(line) || !isUuid(line.itemId)) return null
-      if (typeof line.qty !== 'number' || !Number.isInteger(line.qty) || line.qty < 1 || line.qty > 99) return null
-      const opts = line.optionIds === undefined ? [] : line.optionIds
-      if (!Array.isArray(opts) || opts.length > MAX_OPTIONS_PER_LINE || !opts.every(isUuid)) return null
-      // só estes três campos: um preço, total ou delta que o navegador acrescente morre aqui
-      items.push({ itemId: line.itemId, qty: line.qty, optionIds: [...(opts as string[])] })
-    }
-  } else {
-    if (raw.merchantId !== undefined && raw.merchantId !== null) return null
-    if (raw.items !== undefined && !(Array.isArray(raw.items) && raw.items.length === 0)) return null
-    if (!isUuid(raw.pickupAddressId)) return null
-    pickupAddressId = raw.pickupAddressId
-    items = []
-  }
-  return { kind: kind as OrderKind, merchantId, items, pickupAddressId, dropoffAddressId: raw.dropoffAddressId }
+  if (!CUSTOMER_KINDS.includes(kind as OrderKind)) return null
+  if (!isUuid(raw.dropoffAddressId) || !isUuid(raw.pickupAddressId)) return null
+  // loja e itens não existem mais em nenhum pedido: quem os mandar está errado ou adulterando
+  if (raw.merchantId !== undefined && raw.merchantId !== null) return null
+  if (raw.items !== undefined && !(Array.isArray(raw.items) && raw.items.length === 0)) return null
+  return { kind: kind as 'courier' | 'ride', pickupAddressId: raw.pickupAddressId, dropoffAddressId: raw.dropoffAddressId }
 }
 
 export function parseCreateInput(raw: unknown): CreateOrderInput | null {
