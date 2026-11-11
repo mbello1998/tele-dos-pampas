@@ -8,6 +8,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { CallFeed } from '@/components/courier/CallFeed'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 import type { Call } from '@/components/courier/types'
 
 export const metadata: Metadata = { title: 'Prévia: chamados', robots: { index: false, follow: false } }
@@ -92,12 +93,15 @@ export default function PreviaMotoboy() {
   const mine = calls.filter((c) => c.acceptTo === null)
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-md px-3 pb-16 pt-4">
+    <>
+      <ScreenBackdrop name="chamados" />
+      <main className="mx-auto min-h-dvh w-full max-w-md px-3 pb-16 pt-4">
       <p className="mb-3 rounded-lg border border-sol/40 bg-sol/10 px-3 py-2 text-sm text-white/80">
         <strong className="font-semibold">Prévia.</strong> Chamados de exemplo, sem banco e sem login, só para
         avaliar o desenho. O botão ACEITAR não vai funcionar aqui.
       </p>
       <CallFeed queue={queue} mine={mine} radiusKm={6} serverNow={now} locale="pt-BR" loadFailed={false} />
-    </main>
+      </main>
+    </>
   )
 }

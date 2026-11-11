@@ -7,6 +7,7 @@ import { getLocale } from '@/lib/i18n/server'
 import { createClient } from '@/lib/supabase/server'
 import { SHOP_COPY } from '@/components/shop/copy'
 import { ShopDeliveryScreen, type SavedAddress, type ShopOption } from '@/components/shop/ShopDeliveryScreen'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 export const metadata: Metadata = { title: 'Tele dos Pampas — chamar motoboy', robots: { index: false } }
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,9 @@ export default async function EntregaDaLoja() {
   }))
 
   return (
-    <main lang={locale} className="mx-auto w-full max-w-[32rem] px-4 pb-0 pt-5">
+    <>
+      <ScreenBackdrop name="loja" />
+      <main lang={locale} className="mx-auto min-h-dvh w-full max-w-[32rem] px-4 pb-16 pt-5">
       <header className="mb-5">
         <p className="font-[family-name:var(--font-display)] text-lg font-extrabold uppercase tracking-wide text-sol">
           Tele dos Pampas
@@ -56,6 +59,7 @@ export default async function EntregaDaLoja() {
       ) : (
         <ShopDeliveryScreen locale={locale} currency={profile.currencyPref} shops={options} saved={saved} />
       )}
-    </main>
+      </main>
+    </>
   )
 }

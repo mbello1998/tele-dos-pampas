@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { CallFeed } from '@/components/courier/CallFeed'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 import type { Call, Place } from '@/components/courier/types'
 import { CLOSED_STATUSES, legalTargets, type OrderKind, type OrderStatus, type TransitionRow } from '@/app/admin/despacho/transitions'
 import { requireRole } from '@/lib/auth/session'
@@ -120,8 +121,11 @@ export default async function Motoboy() {
     .sort((a, b) => a.createdAtMs - b.createdAtMs)
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-md px-3 pb-16 pt-4">
+    <>
+      <ScreenBackdrop name="chamados" />
+      <main className="mx-auto min-h-dvh w-full max-w-md px-3 pb-16 pt-4">
       <CallFeed queue={queue} mine={mine} radiusKm={radiusKm} serverNow={Date.now()} locale={locale} loadFailed={loadFailed} />
-    </main>
+      </main>
+    </>
   )
 }

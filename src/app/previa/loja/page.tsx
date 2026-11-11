@@ -11,6 +11,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { ShopDeliveryScreen, type SavedAddress, type ShopOption } from '@/components/shop/ShopDeliveryScreen'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 import { SHOP_COPY } from '@/components/shop/copy'
 
 export const metadata: Metadata = { title: 'Prévia: chamar motoboy', robots: { index: false, follow: false } }
@@ -29,7 +30,9 @@ export default function PreviaLoja() {
   const c = SHOP_COPY[locale]
 
   return (
-    <main lang={locale} className="mx-auto w-full max-w-[32rem] px-4 pb-0 pt-5">
+    <>
+      <ScreenBackdrop name="loja" />
+      <main lang={locale} className="mx-auto min-h-dvh w-full max-w-[32rem] px-4 pb-16 pt-5">
       <p className="mb-4 rounded-lg border border-sol/40 bg-sol/10 px-3 py-2 text-sm text-white/80">
         <strong className="font-semibold">Prévia.</strong> Loja e endereços de exemplo, sem login, só para avaliar
         o desenho. O <strong className="font-semibold">preço não vai aparecer aqui</strong>: ele só sai com sessão
@@ -45,6 +48,7 @@ export default function PreviaLoja() {
         <p className="mt-2 text-base text-white/70">{c.sub}</p>
       </header>
       <ShopDeliveryScreen locale={locale} currency="BRL" shops={SHOPS} saved={SAVED} />
-    </main>
+      </main>
+    </>
   )
 }
