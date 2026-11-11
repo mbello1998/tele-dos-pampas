@@ -416,8 +416,9 @@ test('as animações alteram apenas transform e opacity', async () => {
   }
 
   // 3) No CSS, os @keyframes só mexem em transform e opacity. A exceção de pintura também vale aqui, e
-  //    por um nome só: `malha-desenha`, o desenho da malha da tela de pedido (`stroke-dashoffset`, que
-  //    repinta um SVG sem disparar layout). Qualquer outro quadro-chave com outra propriedade reprova.
+  //    O desenho da malha da tela de pedido (`malha-desenha`, com `stroke-dashoffset`) saiu do CSS: agora é o vídeo
+  //    do Remotion (IdleBackdrop), então nenhum quadro-chave pode usar a exceção. Qualquer propriedade fora de
+  //    transform/opacity reprova.
   const css = read('src/styles/motion.css').replace(/\/\*[\s\S]*?\*\//g, '')
   const blocos = [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)]
   expect(blocos.length).toBeGreaterThan(0)
@@ -427,7 +428,7 @@ test('as animações alteram apenas transform e opacity', async () => {
     if (props.includes('stroke-dashoffset')) comDashCss.push(nome)
     expect(props.filter((p) => p !== 'transform' && p !== 'opacity' && p !== 'stroke-dashoffset')).toEqual([])
   }
-  expect(comDashCss).toEqual(['malha-desenha'])
+  expect(comDashCss).toEqual([])
 })
 
 // ---------------------------------------------------------------------------------------------

@@ -9,3 +9,8 @@ node_modules/
 test-results/
 playwright-report/
 blob-report/
+
+# Quadros de conferência do vídeo (npm run video -- --still)
+tmp/
+
+certificates

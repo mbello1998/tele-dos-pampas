@@ -4,10 +4,9 @@
 // Server Component fino: idioma e moeda de exibição do servidor, e a ilha de cliente faz o resto. NÃO chama
 // requireRole: esta tela é aberta a qualquer um, e a conta só aparece no confirmar.
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import { LocaleSwitch } from '@/components/auth/LocaleSwitch'
-import { MeshBackdrop } from '@/components/request/MeshBackdrop'
+import { IdleBackdrop } from '@/components/request/IdleBackdrop'
 import { REQUEST_COPY } from '@/components/request/copy'
 import { RequestScreen } from '@/components/request/RequestScreen'
 import { getSession } from '@/lib/auth/session'
@@ -20,12 +19,13 @@ export const metadata: Metadata = {
 
 /**
  * A identidade numa imagem só: o pampa ao anoitecer, o sol enorme no horizonte e, embaixo, as duas malhas
- * urbanas separadas pelo rio e costuradas pela ponte, com um rastro âmbar numa rua. É o mesmo desenho que a
- * malha animada faz ao vivo — e é o que a pessoa vê no primeiro décimo de segundo. 32 kB no celular.
+ * urbanas separadas pelo rio e costuradas pela ponte, com um rastro âmbar numa rua. É o que a pessoa vê no
+ * primeiro décimo de segundo (32 kB no celular) e o que fica, parado, com reduced-motion e economia de dados.
+ * Quando o movimento é liberado, o vídeo do mesmo desenho (Remotion, feito da malha real) entra por cima.
  */
 const ARTE = '/arte/pampa-fundo-1536.webp'
-/** Poster da malha, usado só como textura fraca atrás do formulário (ver MeshBackdrop). */
-const POSTER_SRC = '/hero/poster-malha.svg'
+/** O poster do <video>: a mesma arte, em 768 px. */
+const POSTER = '/arte/pampa-fundo-768.webp'
 
 export default async function Home() {
   const locale = await getLocale()
@@ -35,24 +35,12 @@ export default async function Home() {
   const c = REQUEST_COPY[locale]
 
   return (
-    <div lang={locale} className="relative min-h-[100svh] overflow-x-clip">
-      {/* HERO. A arte ocupa a faixa de cima; a parte vazia dela (céu) é onde a marca e a manchete cabem sem
-          disputar leitura, e o pé da imagem se dissolve no fundo para o formulário continuar sem costura. */}
-      <header className="relative isolate">
-        <div className="absolute inset-0 -z-10">
-          <Image
-            src={ARTE}
-            alt=""
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="object-cover object-bottom"
-          />
-          {/* Véu: escurece o topo (onde fica a marca) e o pé (onde o texto cai sobre a malha desenhada),
-              e deixa o miolo — o sol e o rio — aparecer. Gradiente estático, sem custo por quadro. */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,15,13,0.62)_0%,rgba(11,15,13,0.12)_30%,rgba(11,15,13,0.55)_72%,var(--color-noite)_100%)]" />
-        </div>
+    <div lang={locale} className="relative isolate min-h-[100svh] overflow-x-clip">
+      {/* O FUNDO, de ponta a ponta da tela: a arte do pampa e, por cima, o vídeo da malha real (ver IdleBackdrop).
+          O céu vazio da arte é onde a marca e a manchete cabem sem disputar leitura. */}
+      <IdleBackdrop artSrc={ARTE} posterSrc={POSTER} />
 
+      <header className="relative">
         {/* 44svh: a arte respira, e o primeiro serviço já aparece na primeira tela de um celular de 740 px.
             Mais alto que isso e a pessoa abre o app num cartaz, não num formulário. */}
         <div className="mx-auto flex min-h-[44svh] w-full max-w-[32rem] flex-col justify-between px-4 pb-5 pt-3">
@@ -72,10 +60,8 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* O formulário. Atrás dele, a malha real das duas cidades como textura — a mesma geometria da arte,
-          agora vinda do dataset de verdade, desenhando-se uma vez. Sem canvas, sem WebGL. */}
+      {/* O formulário. Atrás dele, o fundo continua: a malha das duas cidades, em movimento, bem mais escura. */}
       <div className="relative">
-        <MeshBackdrop posterSrc={POSTER_SRC} />
         <div className="mx-auto w-full max-w-[32rem] px-4 pb-6">
           <RequestScreen locale={locale} currency={currency} />
 

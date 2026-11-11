@@ -32,63 +32,6 @@
   /* ---- tela de pedido (`/`) ------------------------------------------------------------------
      Esta rota não baixa GSAP nem Lenis: o que se move nela é tudo daqui.                        */
 
-  /* A malha real das duas cidades se desenhando, UMA vez. Depois para: repintar milhares de
-     vértices a cada quadro, para sempre, é bateria de Android de entrada gasta em enfeite. */
-  .malha-traco {
-    stroke-dasharray: 100;
-    animation: malha-desenha 3.4s cubic-bezier(0.33, 1, 0.68, 1) both;
-    animation-delay: var(--atraso, 0.1s);
-  }
-
-  @keyframes malha-desenha {
-    from {
-      stroke-dashoffset: 100;
-    }
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-
-  .malha-rio {
-    animation: aparece 1.2s ease-out 0.9s both;
-  }
-
-  @keyframes aparece {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* O motoboy atravessando a ponte: um nó de 9 px, `transform` e `opacity`, em laço lento. */
-  .malha-moto {
-    animation: atravessa 14s ease-in-out 3.4s infinite;
-  }
-
-  @keyframes atravessa {
-    0% {
-      opacity: 0;
-      transform: translate(0, 0);
-    }
-    6% {
-      opacity: 0.9;
-    }
-    44% {
-      opacity: 0.9;
-      transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px));
-    }
-    54% {
-      opacity: 0;
-      transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px));
-    }
-    100% {
-      opacity: 0;
-      transform: translate(0, 0);
-    }
-  }
-
   /* O preço entrando. É o número pelo qual a pessoa abriu o app: chega com peso, não de fininho.
      Toca de novo a cada valor novo, porque a chave do nó muda. */
   .valor-entra {
