@@ -453,7 +453,10 @@ test('nenhum script de WebGL ou three.js no bundle', () => {
   }
 })
 
-const built = existsSync(join(root, '.next/app-build-manifest.json'))
+// BUILD_ID, nunca app-build-manifest.json: o `next dev` TAMBÉM escreve esse manifesto, então o guarda antigo
+// achava que havia build de produção e media o pacote de desenvolvimento — 2163 kB, um vermelho que não quer
+// dizer nada. BUILD_ID só existe depois de `npm run build`.
+const built = existsSync(join(root, '.next/BUILD_ID'))
 test.skipIf(!built)('JS da rota inicial fica abaixo de 180 kB comprimido (exige npm run build)', () => {
   const app = JSON.parse(read('.next/app-build-manifest.json')) as { pages: Record<string, string[]> }
   const bm = JSON.parse(read('.next/build-manifest.json')) as { polyfillFiles?: string[]; rootMainFiles?: string[] }

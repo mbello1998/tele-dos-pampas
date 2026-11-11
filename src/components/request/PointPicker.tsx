@@ -78,6 +78,24 @@ export function nearestStreet(p: LatLng, datasets: StreetDataset[]): { street: S
   return best
 }
 
+/**
+ * A rua mais próxima EM CADA PAÍS. Serve a uma pergunta que a precisão sozinha não responde: com um erro de
+ * 3 km, de que lado do rio a pessoa está? Se o outro país cabe dentro do círculo de erro, não está decidido —
+ * e o lado decide moeda, travessia e preço. Se não cabe, a cidade está decidida mesmo com GPS ruim.
+ */
+export function nearestByCountry(p: LatLng, datasets: StreetDataset[]): Map<string, { street: Street; meters: number }> {
+  const best = new Map<string, { street: Street; meters: number }>()
+  for (const d of datasets) {
+    for (const street of d.streets) {
+      if (!street.country) continue
+      const meters = distanceToStreetMeters(street, p)
+      const current = best.get(street.country)
+      if (!current || meters < current.meters) best.set(street.country, { street, meters })
+    }
+  }
+  return best
+}
+
 const field = 'min-h-11 w-full rounded-lg border border-white/25 bg-white/5 px-3 text-base'
 
 type Props = {

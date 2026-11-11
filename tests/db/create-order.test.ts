@@ -168,7 +168,8 @@ async function refused(a: Args) {
 async function mismatched(a: Args) {
   const r = await attempt(db, CALL, await params(a))
   expect(r.ok, 'a divergência não levanta: devolve a recusa').toBe(true)
-  const out = (r as { ok: true; rows: { r: Created | Rejected }[] }).rows[0].r
+  if (!r.ok) throw new Error(r.message)
+  const out = r.rows[0].r as Created | Rejected
   expect(out.ok).toBe(false)
   return out as Rejected
 }

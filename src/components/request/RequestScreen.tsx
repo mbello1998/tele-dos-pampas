@@ -18,7 +18,7 @@ import { useStreetDatasets, type DatasetLoader } from '@/components/address/Stre
 import { PriceSummary } from '@/components/order/PriceSummary'
 import { formatMoney, type Currency, type Locale } from '@/lib/money/format'
 import { TRIP_KINDS, type TripKind, type TripQuote } from '@/lib/pricing/trip'
-import { GPS_MAX_FROM_STREET_M, MAX_ACCURACY_M, nearestStreet, PointPicker, type ChosenPlace } from './PointPicker'
+import { GPS_MAX_FROM_STREET_M, MAX_ACCURACY_M, nearestByCountry, nearestStreet, PointPicker, type ChosenPlace } from './PointPicker'
 import { REQUEST_COPY, failureText } from './copy'
 
 type Props = {
@@ -30,7 +30,7 @@ type Props = {
 }
 
 type Step = 'from' | 'to'
-type GpsNote = 'denied' | 'unavailable' | 'timeout' | 'imprecise' | 'far' | null
+type GpsNote = 'denied' | 'unavailable' | 'timeout' | 'ambiguous' | 'far' | null
 
 const display = 'font-[family-name:var(--font-display)]'
 /** A arte de cada serviço: o motoboy e a encomenda na garupa, na paleta pampa. */
@@ -122,20 +122,34 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
       async (pos) => {
         const datasets = await waitForDatasets()
         setGpsPending(false)
-        if (pos.coords.accuracy > MAX_ACCURACY_M) {
-          setGpsNote('imprecise')
-          return
-        }
         const point = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         const near = datasets ? nearestStreet(point, datasets) : null
         if (!near || near.meters > GPS_MAX_FROM_STREET_M) {
           setGpsNote('far')
           return
         }
+
+        // Um GPS impreciso não é inútil: é impreciso. O que o erro grande pode estragar não é o número da casa
+        // (o dono confere a rua na tela) — é O LADO DO RIO, que decide moeda, travessia e preço. Então a
+        // pergunta não é "quantos metros de erro", é "o outro país cabe dentro do círculo de erro?".
+        const accuracy = pos.coords.accuracy
+        const rough = accuracy > MAX_ACCURACY_M
+        if (rough) {
+          const byCountry = datasets ? nearestByCountry(point, datasets) : new Map()
+          const other = [...byCountry.entries()].find(([country]) => country !== near.street.country)
+          // O outro lado alcançável dentro do erro: a cidade não está decidida, e adivinhar cobra errado.
+          if (other && other[1].meters <= accuracy) {
+            setGpsNote('ambiguous')
+            return
+          }
+        }
+
+        setGpsNote(null)
         choose('from', {
           point: { city: near.street.city, country: near.street.country, ...point },
           label: c.gps_label,
-          detail: c.gps_near(near.street.name),
+          // Com erro grande a rua é um palpite bom, não um fato: a linha de baixo diz isso, e fica na tela.
+          detail: rough ? c.gps_near_rough(near.street.name) : c.gps_near(near.street.name),
         })
       },
       (err) => {
