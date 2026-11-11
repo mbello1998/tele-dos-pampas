@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { requireRole } from '@/lib/auth/session'
 import { USER_ROLES } from '@/lib/auth/types'
@@ -16,7 +17,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ code: s
   const { code: raw } = await params
   const code = decodeURIComponent(raw).trim().toUpperCase()
 
-  const fixture = fixtureFor(code)
+  const fixture = fixtureFor(code, (await headers()).get('host'))
   if (fixture) return <TrackingView data={fixture} locale="pt-BR" />
 
   // Qualquer papel pode ter feito um pedido; o que a pessoa enxerga quem decide é o RLS (só o próprio pedido).

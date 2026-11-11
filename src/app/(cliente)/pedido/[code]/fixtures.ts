@@ -57,7 +57,14 @@ const FIXTURES: Record<string, TrackingData> = {
   },
 }
 
-export function fixtureFor(code: string): TrackingData | null {
+/**
+ * Três travas, todas precisam abrir: a variável, o prefixo do código e o HOST da requisição ser a própria
+ * máquina. A terceira é a que protege um deploy mal configurado: numa URL pública o Host é o domínio do site,
+ * nunca localhost, então a variável esquecida ligada não abre a porta. (NODE_ENV não serve de trava: o e2e
+ * roda contra o build de produção, onde NODE_ENV é 'production'.)
+ */
+export function fixtureFor(code: string, host: string | null): TrackingData | null {
   if (process.env.TRACKING_E2E_FIXTURES !== '1' || !code.startsWith('E2E-')) return null
+  if (process.env.NETLIFY === 'true' || !host || !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return null
   return FIXTURES[code] ?? null
 }

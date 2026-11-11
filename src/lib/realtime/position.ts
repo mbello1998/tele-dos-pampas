@@ -210,8 +210,10 @@ async function browserClient(): Promise<SupabaseClient> {
 
 async function insertPosition(orderId: string, fix: PositionFix): Promise<void> {
   const client = await browserClient()
-  const { data } = await client.auth.getUser()
-  const courierId = data.user?.id
+  // getSession() lê a sessão local (storage); getUser() iria ao servidor de autenticação a CADA envio, o que
+  // dobraria as requisições do aparelho do motoboy. Não é decisão de segurança: a RLS recusa courier_id forjado.
+  const { data } = await client.auth.getSession()
+  const courierId = data.session?.user.id
   if (!courierId) throw new Error('sem sessão')
   const { error } = await client.from('courier_positions').insert({
     courier_id: courierId,

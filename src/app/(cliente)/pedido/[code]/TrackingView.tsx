@@ -16,7 +16,7 @@ import type { TrackingData } from './data'
 // O mapa só é baixado quando há posição para mostrar, e nunca no servidor.
 const CourierMap = dynamic(() => import('@/components/order/CourierMap').then((m) => m.CourierMap), {
   ssr: false,
-  loading: () => <div className="aspect-[4/3] w-full animate-pulse rounded-lg bg-white/5" aria-hidden="true" />,
+  loading: () => <div className="aspect-[4/3] w-full animate-pulse motion-reduce:animate-none rounded-lg bg-white/5" aria-hidden="true" />,
 })
 
 type Props = { data: TrackingData; locale: Locale }
