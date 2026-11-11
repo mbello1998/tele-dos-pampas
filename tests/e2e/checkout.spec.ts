@@ -154,7 +154,7 @@ test.describe('com o serviço aberto', () => {
     await expect(page.locator('[data-line="base"]')).toBeVisible() // a taxa de entrega veio do servidor
     await expect(page.locator('[data-total="brl"]')).toBeVisible()
     const tudo = respostas.join('\n').toLowerCase()
-    expect(tudo).toContain('lanche e2e') // a captura funcionou
+    expect(tudo).toContain('items_subtotal') // a captura funcionou: a resposta da action de cotação passou por aqui
     expect(tudo).not.toContain(COMISSAO)
     expect(tudo).not.toContain('commission')
     expect(tudo).not.toContain('comiss')
