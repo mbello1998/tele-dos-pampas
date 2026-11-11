@@ -17,7 +17,7 @@ import { quoteTrip, requestNextPath } from '@/actions/quote'
 import { useStreetDatasets, type DatasetLoader } from '@/components/address/StreetPicker'
 import { PriceSummary } from '@/components/order/PriceSummary'
 import { formatMoney, type Currency, type Locale } from '@/lib/money/format'
-import { prefersReducedMotion } from '@/lib/motion/gsap'
+import { rolarPara } from '@/lib/motion/rolar'
 import { TRIP_KINDS, type TripKind, type TripQuote } from '@/lib/pricing/trip'
 import { GPS_MAX_FROM_STREET_M, MAX_ACCURACY_M, nearestByCountry, nearestStreet, PointPicker, type ChosenPlace } from './PointPicker'
 import { REQUEST_COPY, failureText } from './copy'
@@ -66,12 +66,7 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
       primeiro.current = false
       return
     }
-    const alvo = open ? passoRef.current[open] : precoRef.current
-    if (!alvo) return
-    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
-    // no quadro seguinte: o passo que abriu ainda não tem a altura final quando o efeito roda
-    const id = requestAnimationFrame(() => alvo.scrollIntoView({ behavior, block: open ? 'start' : 'center' }))
-    return () => cancelAnimationFrame(id)
+    return rolarPara(open ? passoRef.current[open] : precoRef.current, open ? 'start' : 'center')
   }, [open])
   const [quote, setQuote] = useState<TripQuote | null>(null)
   const [quoting, setQuoting] = useState(false)

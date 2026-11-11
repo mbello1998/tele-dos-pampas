@@ -6,7 +6,7 @@
 // localização", que é o que a pessoa faz primeiro quando abre um app de corrida.
 //
 // O que NÃO está aqui, de propósito: salvar em `addresses` (precisa de conta) e qualquer conta de preço.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BlockPicker,
   blockLabel,
@@ -19,6 +19,7 @@ import {
 import { MapPin, MAX_ACCURACY_M, type PinFix } from '@/components/address/MapPin'
 import { ReferenceField } from '@/components/address/ReferenceField'
 import { CITY_NAME, COUNTRY_NAME, FLAG, StreetPicker, type Load } from '@/components/address/StreetPicker'
+import { rolarPara } from '@/lib/motion/rolar'
 import type { City, Country, LatLng, Street, StreetDataset } from '@/lib/geo/types'
 import type { Locale } from '@/lib/money/format'
 import type { TripPoint } from '@/lib/pricing/trip'
@@ -119,6 +120,25 @@ export function PointPicker({ locale, load, onStart, onChoose, gps }: Props) {
   const [missing, setMissing] = useState(false)
   const [city, setCity] = useState<City | null>(null)
   const [streetText, setStreetText] = useState('')
+
+  // ROLAR SOZINHO, PERGUNTA A PERGUNTA. Cada âncora é um momento de ESCOLHA (a rua, a quadra, o pino), nunca
+  // digitação: rolar a cada tecla do número seria insuportável. Como os três estados nascem nulos, o primeiro
+  // render não rola nada.
+  const restoRef = useRef<HTMLDivElement | null>(null)
+  const numeroRef = useRef<HTMLLabelElement | null>(null)
+  const refRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!street && !missing) return
+    return rolarPara(restoRef.current)
+  }, [street, missing])
+  useEffect(() => {
+    if (!blockId) return
+    return rolarPara(numeroRef.current)
+  }, [blockId])
+  useEffect(() => {
+    if (!pin) return
+    return rolarPara(refRef.current)
+  }, [pin])
 
   const blocks = useMemo(() => (street ? deriveBlocks(street) : []), [street])
   const anchor = useMemo(() => (street ? streetAnchor(street) : null), [street])
@@ -260,10 +280,10 @@ export function PointPicker({ locale, load, onStart, onChoose, gps }: Props) {
       )}
 
       {showRest && (
-        <>
+        <div ref={restoRef} className="grid scroll-mt-4 gap-4">
           {!missing && street && <BlockPicker blocks={blocks} value={blockId} onChange={setBlockId} locale={locale} />}
 
-          <label className="grid gap-1">
+          <label ref={numeroRef} className="grid scroll-mt-4 gap-1">
             <span className="text-base font-semibold">{c.number}</span>
             <input
               type="text"
@@ -289,14 +309,16 @@ export function PointPicker({ locale, load, onStart, onChoose, gps }: Props) {
           )}
           {missing && city && !pin && <p className="text-sm text-sol">{c.pinNeeded}</p>}
 
-          <ReferenceField
-            locale={locale}
-            value={reference}
-            onChange={setReference}
-            required={referenceRequired}
-            showError={tried}
-          />
-        </>
+          <div ref={refRef} className="scroll-mt-4">
+            <ReferenceField
+              locale={locale}
+              value={reference}
+              onChange={setReference}
+              required={referenceRequired}
+              showError={tried}
+            />
+          </div>
+        </div>
       )}
 
       <button
