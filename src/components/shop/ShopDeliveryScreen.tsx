@@ -8,7 +8,7 @@
 //   4. quem paga a entrega (a loja ou o comprador, por pedido).
 //
 // O PREÇO DA ENTREGA NÃO É DIGITADO NEM EDITÁVEL. Ele sai de quoteShopDelivery, que pede ao banco a conta na
-// tarifa de convênio (public.quote_order). Esta tela só formata (formatMoney) e alinha (.preco). A única conta
+// TARIFA DE QUEM PAGA (public.quote_order): convênio quando a loja paga, balcão quando o comprador paga. Esta tela só formata (formatMoney) e alinha (.preco). A única conta
 // feita aqui é a que o motoboy leva do comprador e o troco, e é só para mostrar: create_order a refaz no banco.
 //
 // Movimento: só CSS (src/styles/motion.css), sem GSAP, como a tela de pedir corrida.
@@ -83,7 +83,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
     const mine = ++seq.current
     setQuoting(true)
     setError(null)
-    void quoteShopDelivery({ merchantId: shopId, dropoffAddressId: address.id })
+    void quoteShopDelivery({ merchantId: shopId, dropoffAddressId: address.id, feePayer })
       .then((res) => {
         if (mine !== seq.current) return // resposta velha não sobrescreve a nova
         if (res.ok) setQuote(res.quote)
@@ -98,7 +98,8 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       .finally(() => {
         if (mine === seq.current) setQuoting(false)
       })
-  }, [address, shopId, locale])
+    // feePayer está aqui porque MUDA O PREÇO: trocar quem paga troca a tarifa, e a tela tem de recotar.
+  }, [address, shopId, locale, feePayer])
 
   const collect = parseMoney(collectText)
   const note = parseMoney(noteText)

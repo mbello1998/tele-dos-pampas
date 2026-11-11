@@ -102,6 +102,8 @@ export async function quoteOrder(raw: unknown): Promise<QuoteResult> {
   if (isFailure(trip)) return trip
 
   const { data, error } = await serviceClient().rpc('quote_order', {
+    // Mototáxi e encomenda não têm convênio: sempre a tarifa de balcão.
+    p_fee_payer: 'client',
     p_kind: input.kind,
     p_pickup: trip.pickup,
     p_dropoff: trip.dropoff,

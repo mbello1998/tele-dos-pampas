@@ -64,10 +64,12 @@ type Args = {
   at?: string
   distance?: number | null
   source?: 'osrm' | 'haversine'
+  /** Quem paga, que desde a 0033 ESCOLHE A TARIFA. O padrão repete o da 0031: entrega no convênio. */
+  feePayer?: 'client' | 'merchant'
 }
 
 const SQL_CALL = (fn: string) =>
-  `select ${fn}($1::public.order_kind, $2::jsonb, $3::jsonb, $4::uuid, $5::jsonb, $6::timestamptz, $7::integer, $8::public.route_source) as q`
+  `select ${fn}($1::public.order_kind, $2::jsonb, $3::jsonb, $4::uuid, $5::jsonb, $6::timestamptz, $7::integer, $8::public.route_source, $9::text) as q`
 
 const params = (a: Args) => [
   a.kind ?? 'courier',
@@ -78,6 +80,7 @@ const params = (a: Args) => [
   a.at ?? NOON,
   a.distance === undefined ? 1500 : a.distance,
   a.source ?? 'osrm',
+  a.feePayer ?? ((a.kind ?? 'courier') === 'delivery' ? 'merchant' : 'client'),
 ]
 
 async function quote(a: Args = {}): Promise<FullQuote> {
@@ -889,7 +892,8 @@ describe('entradas inválidas falham alto (nunca um preço)', () => {
 
 // ===========================================================================================================
 describe('permissões e blindagem', () => {
-  const SIG = 'public.order_kind, jsonb, jsonb, uuid, jsonb, timestamp with time zone, integer, public.route_source'
+  // nove argumentos desde a 0033: p_fee_payer entrou, e a assinatura de oito deixou de existir
+  const SIG = 'public.order_kind, jsonb, jsonb, uuid, jsonb, timestamp with time zone, integer, public.route_source, text'
   const sig = () => `${FN}(${SIG})`
 
   test('authenticated e anon NÃO podem executar; service_role pode (distância é entrada, então não é API aberta)', async () => {

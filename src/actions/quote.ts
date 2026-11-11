@@ -61,6 +61,8 @@ export async function quoteTrip(raw: unknown): Promise<TripQuoteResult> {
 
   const route = await routeDistance(input.pickup, input.dropoff)
   const { data, error } = await serviceClient().rpc('quote_order', {
+    // Mototáxi e encomenda não têm convênio: sempre a tarifa de balcão.
+    p_fee_payer: 'client',
     p_kind: input.kind,
     p_pickup: input.pickup,
     p_dropoff: input.dropoff,

@@ -6,7 +6,8 @@
 //     encontrado". O banco confere de novo (create_order: TD010 se o perfil não for dono da loja);
 //   - a COLETA é a coordenada guardada da loja, lida do banco. A tela nunca manda endereço de coleta;
 //   - o endereço do comprador vem da linha de `addresses` do próprio dono (id, nunca coordenada do corpo);
-//   - o PREÇO é da plataforma: public.quote_order na tarifa de convênio. O dono não digita nem altera. O total que
+//   - o PREÇO é da plataforma: public.quote_order. A TARIFA É DE QUEM PAGA: convênio (R$ 8) quando a loja paga,
+//     balcão (R$ 9) quando quem paga é o comprador. O dono não digita nem altera. O total que
 //     a tela viu volta só para ser comparado (diferença acima de R$ 0,01 recusa e vai para audit_log);
 //   - a distância é calculada AQUI (routeDistance) e create_order só roda com a chave secreta, DEPOIS da sessão.
 //
@@ -80,7 +81,7 @@ async function unservedZoneMessage(): Promise<Partial<Record<Locale, string>> | 
   return v && typeof v === 'object' ? (v as Partial<Record<Locale, string>>) : null
 }
 
-/** O preço da entrega até este endereço, na tarifa de convênio. É a mesma conta que create_order refaz depois. */
+/** O preço da entrega até este endereço, na tarifa de quem paga. É a mesma conta que create_order refaz depois. */
 export async function quoteShopDelivery(raw: unknown): Promise<QuoteResult> {
   const input = parseShopQuoteInput(raw)
   if (!input) return failure('invalid_input', (await getSession())?.profile.locale ?? 'pt-BR')
@@ -96,6 +97,7 @@ export async function quoteShopDelivery(raw: unknown): Promise<QuoteResult> {
     p_at: new Date().toISOString(),
     p_distance_m: trip.distanceM,
     p_route_source: trip.routeSource,
+    p_fee_payer: input.feePayer,
   })
   if (error) {
     console.error('quote_order (loja) falhou', error.code)

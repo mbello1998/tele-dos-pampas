@@ -115,8 +115,9 @@ const json = (v: unknown) => (v === undefined || v === null ? null : JSON.string
 /** O preço que o servidor cobraria agora (mesma transação, mesmo now()). */
 async function serverQuote(a: Args) {
   const r = await db.query<{ q: Record<string, unknown> }>(
-    `select public.quote_order($1::public.order_kind, $2::jsonb, $3::jsonb, $4::uuid, $5::jsonb, now(), $6::integer, $7::public.route_source) as q`,
-    [kindOf(a), json(pickupOf(a)), json(a.dropoff ?? Q2), a.merchant ?? null, json(a.items), a.distance ?? 1500, a.source ?? 'osrm'],
+    `select public.quote_order($1::public.order_kind, $2::jsonb, $3::jsonb, $4::uuid, $5::jsonb, now(), $6::integer, $7::public.route_source, $8::text) as q`,
+    // o mesmo que create_order passa: quem paga escolhe a tarifa (0033), e aqui a entrega é sempre paga pela loja
+    [kindOf(a), json(pickupOf(a)), json(a.dropoff ?? Q2), a.merchant ?? null, json(a.items), a.distance ?? 1500, a.source ?? 'osrm', kindOf(a) === 'delivery' ? 'merchant' : 'client'],
   )
   return r.rows[0].q as { totalBrl: number; totalUyu: number; breakdown: { key: string; amountBrl: number }[] }
 }
@@ -311,7 +312,7 @@ describe('o pedido congela o preço', () => {
        values ('quarai', 'courier', 99, 2, 9, 99, ${TODAY} + 1)`,
     )
     const tomorrow = await db.query<{ q: { totalBrl: number } }>(
-      `select public.quote_order('courier', $1::jsonb, $2::jsonb, null, null, now() + interval '1 day', 1500, 'osrm') as q`,
+      `select public.quote_order('courier', $1::jsonb, $2::jsonb, null, null, now() + interval '1 day', 1500, 'osrm', 'client') as q`,
       [JSON.stringify(Q1), JSON.stringify(Q2)],
     )
     expect(tomorrow.rows[0].q.totalBrl).toBe(99) // a mudança é real...

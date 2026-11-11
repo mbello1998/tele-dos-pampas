@@ -17,14 +17,17 @@ export const MAX_LOAD = 500
 /** Mesmo teto do banco (create_order recusa acima de R$ 10.000). */
 export const MAX_COLLECT_BRL = 10_000
 
-/** O que basta para cotar: só o endereço. A loja de origem é a do dono da sessão, lida pelo servidor. */
-export type ShopQuoteInput = { merchantId: string; dropoffAddressId: string }
+/**
+ * O que basta para cotar: o endereço e QUEM PAGA. A loja de origem é a do dono da sessão, lida pelo servidor.
+ * Quem paga está aqui, e não só na criação, porque é ele que escolhe a tarifa — convênio quando a loja paga,
+ * balcão quando o comprador paga.
+ */
+export type ShopQuoteInput = { merchantId: string; dropoffAddressId: string; feePayer: FeePayer }
 
 export type ShopCreateInput = ShopQuoteInput & {
   loadDescription: string
   /** O que o motoboy cobra do comprador pela mercadoria, em reais. null = nada a cobrar. */
   collectAmountBrl: number | null
-  feePayer: FeePayer
   /** Em que dinheiro o comprador paga ao motoboy. */
   payCurrency: PayCurrency
   /** A nota que o comprador vai entregar, na moeda de `payCurrency`. */
@@ -39,7 +42,10 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 export function parseShopQuoteInput(raw: unknown): ShopQuoteInput | null {
   if (!isRecord(raw) || !isUuid(raw.merchantId) || !isUuid(raw.dropoffAddressId)) return null
-  return { merchantId: raw.merchantId, dropoffAddressId: raw.dropoffAddressId }
+  // feePayer entra JÁ NA COTAÇÃO porque é ele que escolhe a tarifa: convênio (R$ 8) quando a loja paga,
+  // balcão (R$ 9) quando quem paga é o comprador. Sem ele, a tela mostraria um preço e o banco cobraria outro.
+  if (!FEE_PAYERS.includes(raw.feePayer as FeePayer)) return null
+  return { merchantId: raw.merchantId, dropoffAddressId: raw.dropoffAddressId, feePayer: raw.feePayer as FeePayer }
 }
 
 /** Centavos exatos: 45,5 passa, 45,555 não (a coluna é numeric(10,2) e o banco recusa mais casas). */
