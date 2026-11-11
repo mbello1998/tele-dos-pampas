@@ -138,7 +138,7 @@ export function CallFeed({
       {mine.length > 0 ? <h2 className={`${display} mb-2 text-xl leading-none tracking-wide text-white/70`}>{copy.queue_title}</h2> : null}
 
       {visible.length === 0 && !loadFailed ? (
-        <div className="rounded-xl border-2 border-white/15 px-4 py-10 text-center" data-testid="empty">
+        <div className="rounded-xl border-2 border-borda px-4 py-10 text-center" data-testid="empty">
           <p className={`${display} text-[2.25rem] leading-none text-white`}>{copy.none}</p>
           <p className="mt-3 text-base text-white/70">{copy.none_hint}</p>
         </div>

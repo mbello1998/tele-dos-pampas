@@ -45,7 +45,7 @@ export const ptBR = {
   'profile.currency.label': 'Ver preços em',
   'profile.currency.preview': 'Exemplo de preço',
   'profile.save': 'Salvar',
-  'profile.saved': 'Alterações salvas.',
+  'profile.saved': 'Salvo',
   'profile.error.invalid': 'Confira os campos e tente de novo.',
   'profile.error.forbidden': 'Sua conta não pode alterar o perfil agora.',
   'profile.error.failed': 'Não foi possível salvar agora.',

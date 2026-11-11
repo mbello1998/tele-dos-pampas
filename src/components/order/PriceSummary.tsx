@@ -43,7 +43,7 @@ export function PriceSummary({ quote, currency, locale, t = priceT }: Props) {
   if (currency === 'UYU') totals.reverse()
 
   return (
-    <section aria-label={t('pricing.title', locale)} className="rounded-xl border border-white/10 bg-white/5 p-4">
+    <section aria-label={t('pricing.title', locale)} className="rounded-xl border border-borda bg-superficie p-4">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-white/70">{t('pricing.title', locale)}</h2>
       <dl className="mt-3 space-y-2">
         {quote.breakdown.map((line) => (
@@ -53,7 +53,7 @@ export function PriceSummary({ quote, currency, locale, t = priceT }: Props) {
           </div>
         ))}
       </dl>
-      <dl className="mt-3 space-y-1 border-t border-white/10 pt-3">
+      <dl className="mt-3 space-y-1 border-t border-borda pt-3">
         {totals.map((row, i) => (
           <div key={row.key} className="flex items-baseline justify-between gap-4" data-total={row.key}>
             <dt className={i === 0 ? 'font-semibold' : 'text-sm text-white/70'}>{row.label}</dt>

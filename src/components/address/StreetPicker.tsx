@@ -135,7 +135,7 @@ export function StreetPicker({ locale, selected, onSelect, onClear, load, onStar
               onClear()
               requestAnimationFrame(() => inputRef.current?.focus())
             }}
-            className="min-h-11 shrink-0 rounded-lg border border-white/25 px-3 text-sm font-semibold"
+            className="min-h-11 shrink-0 rounded-lg border border-borda px-3 text-sm font-semibold"
           >
             {c.change}
           </button>
@@ -192,7 +192,7 @@ export function StreetPicker({ locale, selected, onSelect, onClear, load, onStar
               e.preventDefault() // Enter no campo de busca nunca envia o formulário
             } else if (e.key === 'Escape') setOpen(false)
           }}
-          className="min-h-11 w-full rounded-lg border border-white/25 bg-transparent px-3 text-base"
+          className="min-h-11 w-full rounded-lg border border-borda bg-transparent px-3 text-base"
         />
         <ul
           id={listId}
@@ -201,7 +201,7 @@ export function StreetPicker({ locale, selected, onSelect, onClear, load, onStar
           hidden={!showList}
           // mousedown não pode tirar o foco do campo, senão o onBlur fecha a lista antes do clique
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute inset-x-0 top-full z-20 mt-1 max-h-80 overflow-auto rounded-lg border border-white/25 bg-noite shadow-lg"
+          className="absolute inset-x-0 top-full z-20 mt-1 max-h-80 overflow-auto rounded-lg border border-borda bg-noite shadow-lg"
         >
           {hits.map((h, i) => (
             <li

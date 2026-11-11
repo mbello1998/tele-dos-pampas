@@ -15,7 +15,7 @@ import type { LatLng, Street } from '@/lib/geo/types'
 
 const LeafletMap = dynamic(() => import('@/components/map/LeafletMap'), {
   ssr: false,
-  loading: () => <div className="h-72 animate-pulse rounded-lg bg-white/5" aria-hidden />,
+  loading: () => <div className="h-72 animate-pulse rounded-lg bg-superficie" aria-hidden />,
 })
 
 /** Uma posição marcada pelo cliente. O formulário grava precision 'gps' sempre que existe uma. */
@@ -176,7 +176,7 @@ export function MapPin({ locale, street, required = false, center, value, onChan
 
   const text = note === null ? null : typeof note === 'string' ? c[note] : c.imprecise(note.imprecise)
   const mapOpen = mapState !== 'closed'
-  const btn = 'min-h-11 rounded-lg border border-white/25 px-4 text-base font-semibold disabled:opacity-50'
+  const btn = 'min-h-11 rounded-lg border border-borda px-4 text-base font-semibold disabled:opacity-50'
 
   return (
     <section className="grid gap-2" aria-labelledby={titleId}>

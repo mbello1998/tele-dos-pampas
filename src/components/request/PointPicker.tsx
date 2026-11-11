@@ -19,6 +19,7 @@ import {
 import { MapPin, MAX_ACCURACY_M, type PinFix } from '@/components/address/MapPin'
 import { ReferenceField } from '@/components/address/ReferenceField'
 import { CITY_NAME, COUNTRY_NAME, FLAG, StreetPicker, type Load } from '@/components/address/StreetPicker'
+import type { AddressInput } from '@/actions/addresses'
 import { rolarPara } from '@/lib/motion/rolar'
 import type { City, Country, LatLng, Street, StreetDataset } from '@/lib/geo/types'
 import type { Locale } from '@/lib/money/format'
@@ -58,13 +59,20 @@ const COPY = {
   },
 } as const
 
-/** A ponta escolhida: o que o servidor precisa (`point`) e o que a tela mostra. */
+/** A ponta escolhida: o que o servidor precisa (`point`), o que a tela mostra, e o endereço inteiro. */
 export type ChosenPlace = {
   point: TripPoint
   /** Linha de cima do resumo: a rua, ou "minha localização". */
   label: string
   /** Linha de baixo: cidade, país e o que mais ajude a reconhecer. */
   detail: string
+  /**
+   * TUDO que `saveAddress` precisa. Existe porque o trajeto é montado SEM CONTA: quando a pessoa entra para
+   * confirmar, é com isto que as duas pontas viram endereços dela. Sem este campo o trabalho dela se perde no
+   * login e ela cai numa tela de confirmação com duas listas vazias — que era o defeito.
+   * `null` no atalho de GPS, que não tem rua nem número para gravar.
+   */
+  address: AddressInput | null
 }
 
 /** A rua mais próxima de um ponto, nos dois datasets. É assim que o GPS descobre de que lado da ponte está. */
@@ -97,7 +105,9 @@ export function nearestByCountry(p: LatLng, datasets: StreetDataset[]): Map<stri
   return best
 }
 
-const field = 'min-h-11 w-full rounded-lg border border-white/25 bg-white/5 px-3 text-base'
+// Campo editável: `poco`, mais FUNDO que o painel em volta. O foco é `rio`, que é a cor de informação.
+const field =
+  'min-h-12 w-full rounded-lg border border-borda bg-poco px-3 text-base text-white placeholder:text-white/35 transition-colors focus:border-rio focus:outline-none focus:ring-2 focus:ring-rio/50'
 
 type Props = {
   locale: Locale
@@ -185,6 +195,22 @@ export function PointPicker({ locale, load, onStart, onChoose, gps }: Props) {
       point: { city: place.city, country: place.country, lat: located.lat, lng: located.lng },
       label: n ? `${place.name}, ${n}` : place.name,
       detail,
+      address: {
+        // Apelido vazio de propósito: o servidor preenche com "<rua>, <número>". Quem quiser chamar de "casa"
+        // renomeia depois, em /enderecos.
+        label: '',
+        streetId: missing ? null : ((place as { id?: string | null }).id ?? null),
+        streetName: place.name,
+        number: n,
+        complement: '',
+        betweenStreets: !missing && block ? blockLabel(block, locale) : '',
+        reference: ref,
+        city: place.city,
+        country: place.country,
+        lat: located.lat,
+        lng: located.lng,
+        precision: located.precision,
+      },
     })
   }
 
@@ -220,7 +246,7 @@ export function PointPicker({ locale, load, onStart, onChoose, gps }: Props) {
             {CITIES.map((k) => (
               <label
                 key={k}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-white/20 px-3 py-2 has-[:checked]:border-sol has-[:checked]:bg-white/5"
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-borda px-3 py-2 has-[:checked]:border-sol has-[:checked]:bg-sol/15"
               >
                 <input
                   type="radio"

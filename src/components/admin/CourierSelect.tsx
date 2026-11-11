@@ -15,7 +15,11 @@ export interface DispatchCourier {
   effective_radius_km: string | number | null
 }
 
-const inputClass = 'rounded border border-white/25 bg-transparent px-2 py-1 text-sm'
+const inputClass = 'rounded border border-borda bg-transparent px-2 py-1 text-sm'
+/** `bg-transparent` num <select> deixa o menu nativo branco com texto branco em vários aparelhos: aqui o fundo
+ *  é opaco e as opções são pintadas, em vez do `text-black` solto que havia em cada <option>. */
+const selectClass =
+  'rounded border border-borda bg-noite px-2 py-1 text-sm text-white [&>option]:bg-noite [&>option]:text-white'
 
 export const courierLabel = (c: DispatchCourier) =>
   [
@@ -45,10 +49,10 @@ export function CourierSelect({ orderId, status, couriers, currentCourierId }: {
     <form action={assignCourierForm} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="order" value={orderId} />
       <input type="hidden" name="from" value={status} />
-      <select name="courier" required aria-label="Motoboy" defaultValue="" className={inputClass}>
+      <select name="courier" required aria-label="Motoboy" defaultValue="" className={selectClass}>
         <option value="" disabled>{currentCourierId ? 'Trocar motoboy…' : 'Atribuir motoboy…'}</option>
         {options.map((c) => (
-          <option key={c.profile_id} value={c.profile_id} className="text-black">{courierLabel(c)}</option>
+          <option key={c.profile_id} value={c.profile_id}>{courierLabel(c)}</option>
         ))}
       </select>
       <input name="note" required aria-label="Motivo da atribuição" placeholder="Motivo (ex.: pedido por rádio)" className={inputClass} />

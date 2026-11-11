@@ -3,7 +3,11 @@ import {
   legalTargets, STATUS_LABEL, type OrderLike, type OrderStatus, type TransitionRow,
 } from '@/app/admin/despacho/transitions'
 
-const inputClass = 'rounded border border-white/25 bg-transparent px-2 py-1 text-sm'
+const inputClass = 'rounded border border-borda bg-transparent px-2 py-1 text-sm'
+/** `bg-transparent` num <select> deixa o menu nativo branco com texto branco em vários aparelhos: aqui o fundo
+ *  é opaco e as opções são pintadas, em vez do `text-black` solto que havia em cada <option>. */
+const selectClass =
+  'rounded border border-borda bg-noite px-2 py-1 text-sm text-white [&>option]:bg-noite [&>option]:text-white'
 const buttonClass = 'rounded border border-white/40 px-2 py-1 text-sm hover:bg-white/10'
 
 const verb = (to: OrderStatus) => (to === 'cancelado' ? 'Cancelar pedido' : `Marcar: ${STATUS_LABEL[to]}`)
@@ -36,10 +40,10 @@ export function TransitionButtons({ order, rows }: { order: OrderLike & { id: st
           <form action={transitionOrderForm} className="mt-2 flex flex-wrap items-center gap-2">
             <input type="hidden" name="order" value={order.id} />
           <input type="hidden" name="from" value={order.status} />
-            <select name="to" required aria-label="Novo estado" defaultValue="" className={inputClass}>
+            <select name="to" required aria-label="Novo estado" defaultValue="" className={selectClass}>
               <option value="" disabled>Novo estado…</option>
               {other.map((to) => (
-                <option key={to} value={to} className="text-black">{STATUS_LABEL[to]}</option>
+                <option key={to} value={to}>{STATUS_LABEL[to]}</option>
               ))}
             </select>
             <input name="note" required aria-label="Motivo do ajuste" placeholder="Motivo (obrigatório)" className={inputClass} />

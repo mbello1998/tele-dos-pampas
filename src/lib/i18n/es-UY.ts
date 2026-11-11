@@ -42,7 +42,7 @@ export const esUY: Record<TranslationKey, string> = {
   'profile.currency.label': 'Ver precios en',
   'profile.currency.preview': 'Ejemplo de precio',
   'profile.save': 'Guardar',
-  'profile.saved': 'Cambios guardados.',
+  'profile.saved': 'Guardado',
   'profile.error.invalid': 'Revisá los campos y probá de nuevo.',
   'profile.error.forbidden': 'Tu cuenta no puede modificar el perfil ahora.',
   'profile.error.failed': 'No fue posible guardar ahora.',

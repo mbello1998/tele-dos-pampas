@@ -42,7 +42,7 @@ export function Landing({ content, locale }: { content: LandingContent; locale: 
             href={other.href}
             hrefLang={other.lang}
             lang={other.lang}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/25 px-3 text-sm font-semibold tracking-wider text-white/90"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-borda px-3 text-sm font-semibold tracking-wider text-white/90"
           >
             {other.code}
           </a>

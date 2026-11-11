@@ -16,7 +16,7 @@ import type { TrackingData } from './data'
 // O mapa só é baixado quando há posição para mostrar, e nunca no servidor.
 const CourierMap = dynamic(() => import('@/components/order/CourierMap').then((m) => m.CourierMap), {
   ssr: false,
-  loading: () => <div className="aspect-[4/3] w-full animate-pulse motion-reduce:animate-none rounded-lg bg-white/5" aria-hidden="true" />,
+  loading: () => <div className="aspect-[4/3] w-full animate-pulse motion-reduce:animate-none rounded-lg bg-superficie" aria-hidden="true" />,
 })
 
 type Props = { data: TrackingData; locale: Locale }
@@ -74,7 +74,7 @@ export function TrackingView({ data, locale }: Props) {
       </header>
 
       {degraded && (
-        <p role="status" className="rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/70" data-degraded>
+        <p role="status" className="rounded-md border border-borda bg-superficie px-3 py-2 text-sm text-white/70" data-degraded>
           {copy.liveDegraded}
         </p>
       )}
@@ -93,7 +93,7 @@ export function TrackingView({ data, locale }: Props) {
       )}
 
       {active && !fix && (
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4" data-waiting-signal>
+        <section className="rounded-lg border border-borda bg-superficie p-4" data-waiting-signal>
           <p className="text-base font-semibold text-white">{copy.waitingSignal}</p>
           <p className="mt-1 text-sm text-white/60">{copy.waitingSignalHint}</p>
         </section>

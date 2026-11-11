@@ -18,6 +18,7 @@ import { useStreetDatasets, type DatasetLoader } from '@/components/address/Stre
 import { PriceSummary } from '@/components/order/PriceSummary'
 import { formatMoney, type Currency, type Locale } from '@/lib/money/format'
 import { rolarPara } from '@/lib/motion/rolar'
+import { putTrip } from '@/lib/trip/handoff'
 import { TRIP_KINDS, type TripKind, type TripQuote } from '@/lib/pricing/trip'
 import { GPS_MAX_FROM_STREET_M, MAX_ACCURACY_M, nearestByCountry, nearestStreet, PointPicker, type ChosenPlace } from './PointPicker'
 import { REQUEST_COPY, failureText } from './copy'
@@ -171,6 +172,8 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
           label: c.gps_label,
           // Com erro grande a rua é um palpite bom, não um fato: a linha de baixo diz isso, e fica na tela.
           detail: rough ? c.gps_near_rough(near.street.name) : c.gps_near(near.street.name),
+          // O GPS dá coordenada, não endereço: não há rua, número nem referência para gravar na conta.
+          address: null,
         })
       },
       (err) => {
@@ -191,6 +194,15 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
     if (!quote || quote.blocked || confirming) return
     setConfirming(true)
     try {
+      // O trajeto vai junto. Sem isto, quem precisa criar conta para confirmar perde tudo o que montou e chega
+      // na confirmação com duas listas vazias — e conta nova não tem endereço nenhum para escolher.
+      if (from && to) {
+        putTrip({
+          kind,
+          from: { label: from.label, detail: from.detail, address: from.address },
+          to: { label: to.label, detail: to.detail, address: to.address },
+        })
+      }
       router.push(await requestNextPath(kind))
     } catch {
       setConfirming(false)
@@ -240,7 +252,7 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
               aria-selected={on}
               onClick={() => setKind(k)}
               className={`${press} grid min-w-0 content-start justify-items-center gap-1 rounded-xl border px-2 pb-3 pt-2 text-center ${
-                on ? 'border-sol bg-sol/15' : 'border-white/15 bg-white/[0.03]'
+                on ? 'border-sol bg-sol/15' : 'border-borda bg-white/[0.03]'
               }`}
             >
               <Image
@@ -281,7 +293,7 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
                   place ? 'border-sol bg-sol' : 'border-white/30 bg-noite'
                 } ${step === 'to' ? 'rounded-sm' : ''}`}
               />
-              <div className={`ml-6 min-w-0 rounded-xl border bg-white/[0.04] ${isOpen ? 'border-sol/50' : 'border-white/12'}`}>
+              <div className={`ml-6 min-w-0 rounded-xl border bg-superficie ${isOpen ? 'border-sol/50' : 'border-borda'}`}>
                 {isOpen ? (
                   <div className="passo-entra grid gap-4 p-4">
                     <div>
@@ -334,7 +346,7 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
       <section
         ref={precoRef}
         aria-live="polite"
-        className={`-mx-4 min-w-0 border-t border-white/12 bg-noite/95 px-4 pb-5 pt-4 supports-[backdrop-filter]:bg-noite/80 supports-[backdrop-filter]:backdrop-blur-sm ${
+        className={`-mx-4 min-w-0 border-t border-borda bg-noite/95 px-4 pb-5 pt-4 supports-[backdrop-filter]:bg-noite/80 supports-[backdrop-filter]:backdrop-blur-sm ${
           // vazio ele não gruda: num celular de 740 px, roubar 250 px do formulário para mostrar um traço
           // é pior do que esperar o preço existir.
           quote || quoting || error ? 'sticky bottom-0 z-20' : ''

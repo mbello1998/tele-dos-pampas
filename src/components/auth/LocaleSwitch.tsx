@@ -33,7 +33,7 @@ export function LocaleSwitch({ locale }: { locale: Locale }) {
             })
           }}
           className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-semibold tracking-wider ${
-            o.locale === locale ? 'border-sol bg-sol/15 text-sol' : 'border-white/25 text-white/80'
+            o.locale === locale ? 'border-sol bg-sol/15 text-sol' : 'border-borda text-white/80'
           }`}
         >
           {o.code}

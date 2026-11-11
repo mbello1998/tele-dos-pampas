@@ -40,7 +40,7 @@ export function StatusTimeline({ events, labels, locale, emptyLabel }: Props) {
   }
   const lastIndex = ordered.length - 1
   return (
-    <ol className="relative space-y-5 border-l border-white/15 pl-6" data-timeline>
+    <ol className="relative space-y-5 border-l border-borda pl-6" data-timeline>
       {ordered.map((event, i) => {
         const current = i === lastIndex
         return (

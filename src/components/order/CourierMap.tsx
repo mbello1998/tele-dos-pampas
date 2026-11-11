@@ -124,7 +124,7 @@ export function CourierMap({ tileUrlTemplate, attribution, courier, destination,
         addressText={addressText}
         distanceText={distanceText}
         action={
-          <button type="button" onClick={() => setOptedIn(true)} className="mt-3 min-h-11 rounded-md border border-white/25 px-4 text-sm font-semibold text-white">
+          <button type="button" onClick={() => setOptedIn(true)} className="mt-3 min-h-11 rounded-md border border-borda px-4 text-sm font-semibold text-white">
             {labels.showMap}
           </button>
         }
@@ -156,7 +156,7 @@ function MapFallback({
   action?: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4" data-map-fallback>
+    <div className="rounded-lg border border-borda bg-superficie p-4" data-map-fallback>
       {reason && <p className="text-sm font-semibold text-white/80">{reason}</p>}
       <p className="mt-1 text-base text-white">{addressText}</p>
       {distanceText && <p className="preco mt-1 text-sm text-sol">{distanceText}</p>}

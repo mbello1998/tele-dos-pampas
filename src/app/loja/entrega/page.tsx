@@ -52,7 +52,7 @@ export default async function EntregaDaLoja() {
         <p className="mt-2 text-base text-white/70">{c.sub}</p>
       </header>
       {options.length === 0 ? (
-        <section role="status" className="rounded-xl border border-white/15 bg-white/[0.04] p-4">
+        <section role="status" className="rounded-xl border border-borda bg-superficie p-4">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-extrabold uppercase">{c.no_shop_title}</h2>
           <p className="mt-1 text-base text-white/70">{c.no_shop_text}</p>
         </section>

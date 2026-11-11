@@ -109,7 +109,7 @@ export function borderMismatch(pin: LatLng, chosen: City, datasets: StreetDatase
   return dChosen > BORDER_NEAR_M && dOther + BORDER_MARGIN_M < dChosen ? other : null
 }
 
-const field = 'min-h-11 w-full rounded-lg border border-white/25 bg-transparent px-3 text-base'
+const field = 'min-h-11 w-full rounded-lg border border-borda bg-transparent px-3 text-base'
 
 type Props = {
   onDone: (address: Address) => void
@@ -227,7 +227,7 @@ export function AddressForm({ onDone, locale = 'pt-BR', loadDatasets, loadTileUr
             {CITIES.map((k) => (
               <label
                 key={k}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-white/20 px-3 py-2 has-[:checked]:border-sol has-[:checked]:bg-white/5"
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-borda px-3 py-2 has-[:checked]:border-sol has-[:checked]:bg-sol/15"
               >
                 <input
                   type="radio"

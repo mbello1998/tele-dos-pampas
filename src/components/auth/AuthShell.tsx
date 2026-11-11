@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { display } from '@/lib/fonts'
 import type { Locale } from '@/lib/i18n'
 import { LocaleSwitch } from './LocaleSwitch'
+import { panelClass } from './ui'
 import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 
 /**
@@ -35,11 +36,17 @@ export function AuthShell({
         {showLocaleSwitch ? <LocaleSwitch locale={locale} /> : null}
       </header>
       <main className="mx-auto w-full max-w-md px-4 pb-16 pt-6">
+        {/* O TÍTULO fica SOBRE a arte: é ele que liga a tela ao pampa. O FORMULÁRIO vai num painel, porque
+            rótulo pequeno e texto de ajuda sobre um fundo pintado se perdem — e porque é o painel que diz
+            "aqui começa o que você precisa preencher". Era isso que faltava: a arte e o trabalho ocupavam a
+            mesma camada, e nada tinha começo nem fim. */}
         {title ? (
-          <h1 className="font-[family-name:var(--font-display)] text-4xl font-extrabold uppercase leading-none tracking-wide">{title}</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-extrabold uppercase leading-none tracking-wide drop-shadow-[0_2px_10px_rgba(11,15,13,0.9)]">
+            {title}
+          </h1>
         ) : null}
-        {intro ? <p className="mt-3 text-base text-white/75">{intro}</p> : null}
-        <div className={title ? 'mt-6' : ''}>{children}</div>
+        {intro ? <p className="mt-3 text-base text-white/80 drop-shadow-[0_1px_6px_rgba(11,15,13,0.9)]">{intro}</p> : null}
+        <div className={`${panelClass} ${title || intro ? 'mt-5' : ''}`}>{children}</div>
       </main>
     </div>
     </>

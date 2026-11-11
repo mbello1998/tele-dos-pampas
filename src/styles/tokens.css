@@ -1,12 +1,23 @@
 /* Tokens visuais "pampa". Tema escuro é o padrão.
-   Declarados uma única vez, em @theme: geram bg-noite, text-sol, text-brasa,
-   text-rio, bg-campo e as variáveis --color-*. */
+   Declarados uma única vez, em @theme: geram bg-noite, text-sol, bg-superficie e as variáveis --color-*. */
 @theme {
-  --color-noite: #0B0F0D; /* fundo */
+  --color-noite: #0B0F0D; /* fundo da página */
   --color-sol: #F2A516;
   --color-brasa: #D9452B;
   --color-rio: #2E7D8C;
   --color-campo: #1F4D3A;
+
+  /* AS SUPERFÍCIES.
+     Antes tudo era `bg-white/5` com fio `border-white/20`: uma única camada, uma única borda, e branco
+     translúcido sobre escuro sempre vira o mesmo cinza morto. Sem degrau entre página, painel e campo, nada
+     parece mais importante que nada — é disso que vem a impressão de tela mal construída.
+
+     Estas três têm o VERDE do campo dentro delas, não cinza neutro: um painel sobre a arte do pampa precisa
+     parecer parte da cena, não um retângulo de outro aplicativo pousado em cima dela. */
+  --color-superficie: #141C18; /* o painel: um degrau acima da página */
+  --color-poco: #080C0A; /* o campo editável: mais FUNDO que o painel, como se fosse cavado nele */
+  --color-borda: #26332C; /* fio normal */
+  --color-borda-viva: #3A4F43; /* fio de quem está em foco ou selecionado */
 }
 
 :root {

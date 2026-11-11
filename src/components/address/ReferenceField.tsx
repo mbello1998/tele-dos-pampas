@@ -65,7 +65,7 @@ export function ReferenceField({ locale, value, onChange, required, showError }:
         placeholder={c.placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`min-h-11 w-full rounded-lg border bg-transparent px-3 py-2 text-base ${invalid ? 'border-brasa' : 'border-white/25'}`}
+        className={`min-h-11 w-full rounded-lg border bg-transparent px-3 py-2 text-base ${invalid ? 'border-brasa' : 'border-borda'}`}
       />
       {invalid && (
         <p id={`${uid}-err`} role="alert" className="text-sm text-brasa">

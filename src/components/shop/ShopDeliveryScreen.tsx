@@ -35,7 +35,8 @@ type Props = {
 
 const display = 'font-[family-name:var(--font-display)]'
 const press = 'transition-transform active:scale-[0.985]'
-const field = 'min-h-12 w-full rounded-lg border border-white/25 bg-white/[0.04] px-3 text-base text-white placeholder:text-white/35'
+const field =
+  'min-h-12 w-full rounded-lg border border-borda bg-poco px-3 text-base text-white placeholder:text-white/35 transition-colors focus:border-rio focus:outline-none focus:ring-2 focus:ring-rio/50'
 
 /** "45,50", "45.5", "R$ 45" -> 45.5. Vazio -> null. Lixo -> 'invalid'. Sem separador de milhar: ninguém vende lanche a R$ 1.000. */
 function parseMoney(text: string): number | null | 'invalid' {
@@ -223,14 +224,14 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       </h2>
     </div>
   )
-  const card = 'min-w-0 rounded-xl border bg-white/[0.04] p-4'
+  const card = 'min-w-0 rounded-xl border bg-superficie p-4'
 
   return (
     <div className="flex flex-col gap-4">
       {shops.length > 1 && (
         <label className="grid gap-1 text-sm text-white/60">
           {c.shop}
-          <select value={shopId} onChange={(e) => setShopId(e.target.value)} className={field}>
+          <select value={shopId} onChange={(e) => setShopId(e.target.value)} className={`${field} appearance-none bg-noite pr-9 [&>option]:bg-noite [&>option]:text-white`}>
             {shops.map((s) => (
               <option key={s.id} value={s.id} className="bg-noite">
                 {s.name}
@@ -241,7 +242,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       )}
 
       {/* 1. O endereço do comprador */}
-      <section className={`${card} ${pickerOpen ? 'border-sol/50' : 'border-white/12'}`}>
+      <section className={`${card} ${pickerOpen ? 'border-sol/50' : 'border-borda'}`}>
         {pickerOpen ? (
           <div className="passo-entra grid gap-4">
             {stepHead(1, c.address_title)}
@@ -263,7 +264,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
                       <button
                         type="button"
                         onClick={() => pick(a)}
-                        className={`${press} grid min-h-14 w-full min-w-0 content-center rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-left`}
+                        className={`${press} grid min-h-14 w-full min-w-0 content-center rounded-lg border border-borda bg-white/[0.03] px-3 py-2 text-left`}
                       >
                         <span className="truncate text-base font-semibold">{a.label}</span>
                         {a.summary && a.summary !== a.label && <span className="truncate text-sm text-white/60">{a.summary}</span>}
@@ -302,7 +303,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       </section>
 
       {/* 2. O que vai na sacola */}
-      <section className={`${card} grid gap-3 border-white/12`}>
+      <section className={`${card} grid gap-3 border-borda`}>
         {stepHead(2, c.load_title)}
         <label className="grid gap-1">
           <span className="sr-only">{c.load_title}</span>
@@ -320,7 +321,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       </section>
 
       {/* 3. Quanto o motoboy cobra do comprador */}
-      <section className={`${card} grid gap-3 border-white/12`}>
+      <section className={`${card} grid gap-3 border-borda`}>
         {stepHead(3, c.collect_title, c.collect_optional)}
         <label className="grid gap-1">
           <span className="sr-only">{c.collect_title}</span>
@@ -345,7 +346,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
         </p>
 
         {hasCollect && (
-          <div className="desdobra grid gap-3 border-t border-white/10 pt-3">
+          <div className="desdobra grid gap-3 border-t border-borda pt-3">
             <div role="group" aria-label={c.collect_in} className="grid gap-1.5">
               <p className="text-xs uppercase tracking-widest text-white/50">{c.collect_in}</p>
               <div className="grid grid-cols-2 gap-2">
@@ -356,7 +357,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
                     aria-pressed={payCurrency === cur}
                     onClick={() => setPayCurrency(cur)}
                     className={`${press} min-h-12 rounded-lg border text-base font-bold ${
-                      payCurrency === cur ? 'border-sol bg-sol/15 text-sol' : 'border-white/20 text-white/80'
+                      payCurrency === cur ? 'border-sol bg-sol/15 text-sol' : 'border-borda text-white/80'
                     }`}
                   >
                     {cur === 'BRL' ? c.reais : c.pesos}
@@ -366,7 +367,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
             </div>
 
             {view && view.owed !== null ? (
-              <div className="flex items-end justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-3">
+              <div className="flex items-end justify-between gap-3 rounded-lg bg-superficie px-3 py-3">
                 <div className="min-w-0">
                   <p className="text-xs uppercase tracking-widest text-white/50">{c.collect_total}</p>
                   {feePayer === 'client' && <p className="text-xs text-white/45">{c.collect_includes_fee}</p>}
@@ -417,7 +418,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       </section>
 
       {/* 4. Quem paga a entrega */}
-      <section className={`${card} grid gap-3 border-white/12`}>
+      <section className={`${card} grid gap-3 border-borda`}>
         {stepHead(4, c.payer_title)}
         <div role="radiogroup" aria-label={c.payer_title} className="grid grid-cols-2 gap-2">
           {(['merchant', 'client'] as const).map((p) => {
@@ -430,7 +431,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
                 aria-checked={on}
                 onClick={() => setFeePayer(p)}
                 className={`${press} grid min-w-0 content-start gap-0.5 rounded-lg border px-3 py-3 text-left ${
-                  on ? 'border-sol bg-sol/15' : 'border-white/20 bg-white/[0.03]'
+                  on ? 'border-sol bg-sol/15' : 'border-borda bg-white/[0.03]'
                 }`}
               >
                 <span className={`${display} text-xl font-extrabold uppercase leading-none ${on ? 'text-sol' : 'text-white'}`}>
@@ -446,7 +447,7 @@ export function ShopDeliveryScreen({ locale, currency, shops, saved: initialSave
       {/* O PREÇO. Calculado pela plataforma: não há campo para digitá-lo. Cola na borda de baixo quando existe. */}
       <section
         aria-live="polite"
-        className={`-mx-4 min-w-0 border-t border-white/12 bg-noite/95 px-4 pb-5 pt-4 supports-[backdrop-filter]:bg-noite/80 supports-[backdrop-filter]:backdrop-blur-sm ${
+        className={`-mx-4 min-w-0 border-t border-borda bg-noite/95 px-4 pb-5 pt-4 supports-[backdrop-filter]:bg-noite/80 supports-[backdrop-filter]:backdrop-blur-sm ${
           quote || quoting || error ? 'sticky bottom-0 z-20' : ''
         }`}
       >

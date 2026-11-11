@@ -1,13 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useId, useState, useTransition } from 'react'
+import { useEffect, useId, useState, useTransition } from 'react'
 import { updateProfile } from '@/actions/profile'
 import { safeNextPath } from '@/lib/auth/access'
 import type { City, Country, Currency } from '@/lib/auth/types'
 import { t, type Locale, type TranslationKey } from '@/lib/i18n'
 import { formatMoney } from '@/lib/money/format'
-import { errorClass, inputClass, labelClass, noticeClass, primaryButtonClass } from './ui'
+import { errorClass, inputClass, labelClass, primaryButtonClass, selectClass } from './ui'
 
 export type ProfileFormValues = {
   fullName: string
@@ -49,6 +49,13 @@ export function ProfileForm({
   const [currencyTouched, setCurrencyTouched] = useState(mode === 'settings')
   const [error, setError] = useState<TranslationKey | null>(null)
   const [saved, setSaved] = useState(false)
+  // O "Salvo" se apaga sozinho: um botão que fica verde para sempre deixa de ser notícia e passa a ser enfeite,
+  // e na próxima edição a pessoa não sabe se o que está vendo é o de agora ou o de antes.
+  useEffect(() => {
+    if (!saved) return
+    const id = setTimeout(() => setSaved(false), 3000)
+    return () => clearTimeout(id)
+  }, [saved])
   const [pending, start] = useTransition()
   const L = v.locale
 
@@ -121,7 +128,7 @@ export function ProfileForm({
               currencyPref: city && !currencyTouched ? CURRENCY_OF[city] : cur.currencyPref,
             }))
           }}
-          className={inputClass}
+          className={selectClass}
         >
           <option value="" disabled>
             {'—'}
@@ -156,7 +163,7 @@ export function ProfileForm({
           <label htmlFor={ids.locale} className={labelClass}>
             {t('profile.language.label', L)}
           </label>
-          <select id={ids.locale} name="locale" value={v.locale} onChange={(e) => set('locale', e.target.value as Locale)} className={inputClass}>
+          <select id={ids.locale} name="locale" value={v.locale} onChange={(e) => set('locale', e.target.value as Locale)} className={selectClass}>
             <option value="pt-BR">Português</option>
             <option value="es-UY">Español</option>
           </select>
@@ -173,7 +180,7 @@ export function ProfileForm({
               setCurrencyTouched(true)
               set('currencyPref', e.target.value as Currency)
             }}
-            className={inputClass}
+            className={selectClass}
           >
             <option value="BRL">{t('currency.BRL', L)}</option>
             <option value="UYU">{t('currency.UYU', L)}</option>
@@ -185,8 +192,25 @@ export function ProfileForm({
         {t('profile.currency.preview', L)}: <span className="preco font-semibold text-white" data-testid="currency-preview">{formatMoney(PREVIEW_AMOUNT, v.currencyPref, L)}</span>
       </p>
 
-      <button type="submit" disabled={pending} className={primaryButtonClass}>
-        {pending ? t('common.wait', L) : mode === 'onboarding' ? t('onboarding.submit', L) : t('profile.save', L)}
+      {/* O RESULTADO VIVE NO BOTÃO. Um aviso solto embaixo nasce fora do campo de visão de quem acabou de tocar
+          no botão — a pessoa toca, nada parece mudar, e ela toca de novo. Aqui o próprio botão responde:
+          "Salvando…" enquanto vai, "Salvo" por três segundos quando volta. `aria-live` faz o leitor de tela
+          anunciar a mesma coisa, em vez de só a mudança visual. */}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-live="polite"
+        className={`${primaryButtonClass} transition-colors ${saved ? 'bg-campo text-white' : ''}`}
+      >
+        {pending
+          ? t('common.wait', L)
+          : saved
+            ? // O par da ação: quem tocou em "Salvar" espera ler "Salvo". Frase inteira com ponto final
+              // dentro de um botão é aviso disfarçado de botão.
+              `✓ ${t('profile.saved', L)}`
+            : mode === 'onboarding'
+              ? t('onboarding.submit', L)
+              : t('profile.save', L)}
       </button>
 
       {error ? (
@@ -194,11 +218,7 @@ export function ProfileForm({
           {t(error, L)}
         </p>
       ) : null}
-      {saved ? (
-        <p role="status" className={noticeClass}>
-          {t('profile.saved', L)}
-        </p>
-      ) : null}
+
     </form>
   )
 }

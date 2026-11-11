@@ -50,7 +50,7 @@ export function OrderRow({ order, rows, couriers }: { order: DispatchOrder; rows
       (order.kind !== 'ride' || c.accepts_passenger),
   )
   return (
-    <tr className="border-t border-white/15 align-top" data-testid="order-row" data-code={order.code} data-status={order.status}>
+    <tr className="border-t border-borda align-top" data-testid="order-row" data-code={order.code} data-status={order.status}>
       <td className="px-2 py-3 font-mono">{order.code}</td>
       <td className="px-2 py-3">
         {KIND_LABEL[order.kind]}
