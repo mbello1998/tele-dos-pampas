@@ -48,13 +48,22 @@ export function ScreenBackdrop({
   name,
   /** Quanto da arte passa pelo véu. Baixo de propósito: ela é ambiente. */
   opacity = 0.42,
+  /**
+   * `fundo` joga a camada para -z-20, atrás de outro fundo. A tela inicial usa isso: o pôster com o vídeo
+   * continua mandando no alto, e esta camada só existe para o resto da página não acabar em preto.
+   */
+  depth = 'normal',
 }: {
   name: BackdropName
   opacity?: number
+  depth?: 'normal' | 'fundo'
 }) {
   const art = ART[name]
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-noite">
+    <div
+      aria-hidden
+      className={`pointer-events-none fixed inset-0 overflow-hidden bg-noite ${depth === 'fundo' ? '-z-20' : '-z-10'}`}
+    >
       <picture>
         <source media="(min-width: 768px)" srcSet={art.paisagem} />
         <img

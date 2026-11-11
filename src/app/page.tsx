@@ -7,6 +7,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { LocaleSwitch } from '@/components/auth/LocaleSwitch'
 import { IdleBackdrop } from '@/components/request/IdleBackdrop'
+import { ScreenBackdrop } from '@/components/shell/ScreenBackdrop'
 import { REQUEST_COPY } from '@/components/request/copy'
 import { RequestScreen } from '@/components/request/RequestScreen'
 import { getSession } from '@/lib/auth/session'
@@ -39,6 +40,10 @@ export default async function Home() {
       {/* O FUNDO, de ponta a ponta da tela: a arte do pampa e, por cima, o vídeo da malha real (ver IdleBackdrop).
           O céu vazio da arte é onde a marca e a manchete cabem sem disputar leitura. */}
       <IdleBackdrop artSrc={ARTE} posterSrc={POSTER} />
+      {/* E, ATRÁS dele, o pampa de ponta a ponta. O pôster acima tem altura fixa (9:16 no celular): quando o
+          formulário cresce e a pessoa desce, ele acaba e a página acabava em preto. Esta camada é fraca de
+          propósito — não disputa com o vídeo no alto, só impede que o resto da tela fique sem nada. */}
+      <ScreenBackdrop name="pampa" depth="fundo" opacity={0.26} />
 
       <header className="relative">
         {/* 44svh: a arte respira, e o primeiro serviço já aparece na primeira tela de um celular de 740 px.

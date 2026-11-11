@@ -17,6 +17,7 @@ import { quoteTrip, requestNextPath } from '@/actions/quote'
 import { useStreetDatasets, type DatasetLoader } from '@/components/address/StreetPicker'
 import { PriceSummary } from '@/components/order/PriceSummary'
 import { formatMoney, type Currency, type Locale } from '@/lib/money/format'
+import { prefersReducedMotion } from '@/lib/motion/gsap'
 import { TRIP_KINDS, type TripKind, type TripQuote } from '@/lib/pricing/trip'
 import { GPS_MAX_FROM_STREET_M, MAX_ACCURACY_M, nearestByCountry, nearestStreet, PointPicker, type ChosenPlace } from './PointPicker'
 import { REQUEST_COPY, failureText } from './copy'
@@ -47,6 +48,31 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
   const [from, setFrom] = useState<ChosenPlace | null>(null)
   const [to, setTo] = useState<ChosenPlace | null>(null)
   const [open, setOpen] = useState<Step | null>('from')
+
+  // ROLAR SOZINHO CONFORME PREENCHE. Num celular o formulário é mais alto que a tela: escolher a origem abre o
+  // destino ABAIXO DA DOBRA, e quem não rolou acha que o app travou. Então a tela leva a pessoa até o passo que
+  // acabou de abrir, e até o preço quando as duas pontas estão de pé.
+  //
+  // Duas regras que isto respeita:
+  //   - NÃO rola na montagem. A primeira coisa que se vê é a arte com o vídeo; pular isso seria roubar a entrada
+  //     (por isso `primeiro`, e não um efeito solto em `open`);
+  //   - com prefers-reduced-motion a rolagem é instantânea, não suave. Quem pediu menos movimento ainda precisa
+  //     chegar lá — o que incomoda é o deslizar, não o destino.
+  const passoRef = useRef<Record<Step, HTMLLIElement | null>>({ from: null, to: null })
+  const precoRef = useRef<HTMLElement | null>(null)
+  const primeiro = useRef(true)
+  useEffect(() => {
+    if (primeiro.current) {
+      primeiro.current = false
+      return
+    }
+    const alvo = open ? passoRef.current[open] : precoRef.current
+    if (!alvo) return
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    // no quadro seguinte: o passo que abriu ainda não tem a altura final quando o efeito roda
+    const id = requestAnimationFrame(() => alvo.scrollIntoView({ behavior, block: open ? 'start' : 'center' }))
+    return () => cancelAnimationFrame(id)
+  }, [open])
   const [quote, setQuote] = useState<TripQuote | null>(null)
   const [quoting, setQuoting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -247,7 +273,13 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
           const place = step === 'from' ? from : to
           const isOpen = open === step
           return (
-            <li key={step} className="relative min-w-0">
+            <li
+              key={step}
+              ref={(el) => {
+                passoRef.current[step] = el
+              }}
+              className="relative min-w-0 scroll-mt-4"
+            >
               <span
                 aria-hidden="true"
                 className={`absolute left-0 top-7 z-10 size-3.5 rounded-full border-2 ${
@@ -305,6 +337,7 @@ export function RequestScreen({ locale, currency, loadDatasets }: Props) {
           na tela e entra com peso. Antes de existir, o lugar dele já está reservado e explicado — tela vazia
           que não explica nada parece app quebrado. */}
       <section
+        ref={precoRef}
         aria-live="polite"
         className={`-mx-4 min-w-0 border-t border-white/12 bg-noite/95 px-4 pb-5 pt-4 supports-[backdrop-filter]:bg-noite/80 supports-[backdrop-filter]:backdrop-blur-sm ${
           // vazio ele não gruda: num celular de 740 px, roubar 250 px do formulário para mostrar um traço
