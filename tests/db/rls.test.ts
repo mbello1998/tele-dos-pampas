@@ -117,13 +117,32 @@ describe('políticas RLS', () => {
       }
     })
 
-    test('anon só tem privilégio de SELECT em settings; ninguém tem TRUNCATE; audit_log é append-only nos privilégios', async () => {
+    test('anon só tem SELECT em settings, merchants_public e (por coluna) nas cinco tabelas do cardápio; ninguém tem TRUNCATE; audit_log é append-only nos privilégios', async () => {
       const anon = await asOwner<{ table_name: string; privilege_type: string }>(
         db,
         `select table_name, privilege_type from information_schema.role_table_grants
          where table_schema = 'public' and grantee = 'anon'`,
       )
-      expect(anon).toEqual([{ table_name: 'settings', privilege_type: 'SELECT' }])
+      expect(anon.sort((a, b) => a.table_name.localeCompare(b.table_name))).toEqual([
+        { table_name: 'merchants_public', privilege_type: 'SELECT' },
+        { table_name: 'settings', privilege_type: 'SELECT' },
+      ])
+      // the five menu tables: a column-level allowlist (a column added later is not public by default), SELECT only
+      const anonCols = await asOwner<{ table_name: string; privilege_type: string }>(
+        db,
+        `select distinct table_name, privilege_type from information_schema.column_privileges
+         where table_schema = 'public' and grantee = 'anon' and table_name not in ('settings', 'merchants_public') order by 1`,
+      )
+      expect(anonCols).toEqual(
+        ['catalog_categories', 'catalog_items', 'item_option_groups', 'item_options', 'merchant_hours'].map((t) => ({ table_name: t, privilege_type: 'SELECT' })),
+      )
+      const tableLevel = await asOwner(
+        db,
+        `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public' and c.relkind in ('r', 'v') and has_table_privilege('anon', c.oid, 'select')
+           and c.relname in ('catalog_categories', 'catalog_items', 'item_option_groups', 'item_options', 'merchant_hours')`,
+      )
+      expect(tableLevel).toEqual([]) // none of the five has a table-wide SELECT for anon: the privilege is per column
       const trunc = await asOwner(
         db,
         `select grantee, table_name from information_schema.role_table_grants
@@ -147,13 +166,13 @@ describe('políticas RLS', () => {
     // table [, where] -> roles that must see at least one row (fixtures put at least one row where it is expected)
     const rows: [string, string, K[]][] = [
       ['merchants', 'true', ['merchant', 'admin']], // clients read merchants_public, never the base table
-      ['merchants_public', 'true', ['client']],
+      ['merchants_public', 'true', ['anon', 'client']], // browsing is public (0028)
       ['fleet_orders', 'true', ['fleet']],
-      ['merchant_hours', 'true', ['client', 'merchant', 'admin']],
-      ['catalog_categories', 'true', ['client', 'merchant', 'admin']],
-      ['catalog_items', 'true', ['client', 'merchant', 'admin']],
-      ['item_option_groups', 'true', ['client', 'merchant', 'admin']],
-      ['item_options', 'true', ['client', 'merchant', 'admin']],
+      ['merchant_hours', 'true', ['anon', 'client', 'merchant', 'admin']],
+      ['catalog_categories', 'true', ['anon', 'client', 'merchant', 'admin']],
+      ['catalog_items', 'true', ['anon', 'client', 'merchant', 'admin']],
+      ['item_option_groups', 'true', ['anon', 'client', 'merchant', 'admin']],
+      ['item_options', 'true', ['anon', 'client', 'merchant', 'admin']],
       ['couriers', 'true', ['courier', 'fleet', 'admin']],
       ['fleets', 'true', ['fleet', 'admin']],
       ['addresses', 'true', ['client', 'admin']],
@@ -175,8 +194,8 @@ describe('políticas RLS', () => {
       test(`${table}: leem ${allowed.join(', ')}; os demais papéis recebem zero linhas`, async () => {
         for (const k of Object.keys(who) as K[]) {
           let n: number
-          if (k === 'anon' && table !== 'settings') {
-            // anon holds no privilege on the table at all (settings aside): refused, not merely filtered
+          if (k === 'anon' && table !== 'settings' && !allowed.includes('anon')) {
+            // anon holds no privilege on any table but settings and the six public menu objects: refused, not merely filtered
             await actAs(db, 'anon')
             const a = await attempt(db, `select count(*)::int n from ${table}`)
             expectForbidden(a, `anon ${table}`)
@@ -303,15 +322,23 @@ describe('políticas RLS', () => {
       expectForbidden(await attempt(db, `delete from merchants_public`), 'delete view')
     })
 
-    test('merchants_public: só client lê; fleet, courier, merchant, admin e anon recebem zero linhas ou erro', async () => {
+    test('merchants_public: client e visitante sem sessão leem lojas aprovadas; fleet, courier, merchant e admin recebem zero linhas', async () => {
       for (const w of [courierQ1, merchant1, fleet1, admin, { uid: ID.pendingCourier }]) {
         expect(await count(w, 'merchants_public'), JSON.stringify(w)).toBe(0)
       }
-      await actAs(db, 'anon')
-      expectForbidden(await attempt(db, 'select * from merchants_public'), 'anon')
+      // visitante sem sessão: só lojas aprovadas, e nunca as colunas comerciais
+      const visitor = await readAs(db, 'anon', 'select id from merchants_public')
+      expect(visitor).toEqual(expect.arrayContaining([ID.shop1, ID.shop2, ID.shopOrphan]))
+      expect(visitor).not.toContain(ID.shopPending)
+      for (const col of ['commission_pct', 'owner_id', 'status']) {
+        const peek = await attempt(db, `select ${col} from merchants_public`)
+        expect(!peek.ok && peek.code, col).toBe('42703')
+      }
+      expectForbidden(await attempt(db, 'select id from merchants'), 'anon merchants (a tabela com commission_pct)')
       // loja suspensa some da vitrine
       await asOwner(db, `update merchants set status = 'suspended' where id = $1`, [ID.shop1])
       expect(await readAs(db, clientA, 'select id from merchants_public')).not.toContain(ID.shop1)
+      expect(await readAs(db, 'anon', 'select id from merchants_public')).not.toContain(ID.shop1)
     })
 
     test('client lê os itens e eventos do próprio pedido, nunca os de outro', async () => {
@@ -1477,7 +1504,13 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     expect((await rest('merchants?select=id,commission_pct', A.token!)).json).toEqual([])
     const w = await rest('merchants_public?name=like.*', A.token!, { method: 'PATCH', body: { name: 'x' } })
     expect(w.status).toBeGreaterThanOrEqual(400)
-    expect((await rest('merchants_public?select=id', null)).status).toBeGreaterThanOrEqual(400) // anon
+    const pub = await rest('merchants_public?select=id,name', null) // anon: browsing is public (0028)
+    expect(pub.status).toBe(200)
+    expect(pub.json.length).toBeGreaterThanOrEqual(2)
+    expect((await rest('merchants_public?select=commission_pct', null)).status).toBe(400)
+    for (const t of ['merchants', 'orders', 'order_items', 'order_commissions', 'addresses', 'profiles', 'couriers', 'fleets', 'courier_positions', 'pricing_rules', 'fx_rates', 'audit_log']) {
+      expect((await rest(`${t}?select=*`, null)).status, `anon ${t}`).toBeGreaterThanOrEqual(400)
+    }
   })
 
   test('courier (token real): o valor a cobrar existe; comissão, subtotal de itens e breakdown não são alcançáveis por caminho nenhum', async () => {
