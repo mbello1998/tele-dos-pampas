@@ -28,7 +28,6 @@ export const COPY: Record<Locale, Record<string, string>> = {
     'pricing.total_brl': 'Total em reais',
     'pricing.total_uyu': 'Total em pesos',
     'pricing.stale': 'Cotação desatualizada: usamos a última disponível.',
-    'pricing.rounding_note': 'Em pesos, cada valor sobe para o peso inteiro seguinte. O total é calculado sobre o valor em reais.',
     'pricing.blocked_title': 'Não dá para fazer este pedido',
     'pricing.blocked_fallback': 'Não foi possível calcular o preço deste pedido.',
     // loja e item
@@ -89,7 +88,6 @@ export const COPY: Record<Locale, Record<string, string>> = {
     'pricing.total_brl': 'Total en reales',
     'pricing.total_uyu': 'Total en pesos',
     'pricing.stale': 'Cotización desactualizada: usamos la última disponible.',
-    'pricing.rounding_note': 'En pesos, cada valor sube al peso entero siguiente. El total se calcula sobre el valor en reales.',
     'pricing.blocked_title': 'No se puede hacer este pedido',
     'pricing.blocked_fallback': 'No fue posible calcular el precio de este pedido.',
     'catalog.open': 'Abierto',

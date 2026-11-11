@@ -6,7 +6,12 @@ import type { Currency, DisplayFx, Locale } from './types'
 const trimFloatNoise = (x: number): number => Math.round(x * 1e6) / 1e6
 
 /**
- * formatMoney arredonda com Intl (meio para cima), então 81,4 pesos aparecem como "$U 81" quando o certo é 82.
+ * SEM CHAMADOR EM PRODUÇÃO HOJE, DE PROPÓSITO: não apague como código morto. Hoje todo peso exibido sai de
+ * convertBrlToUyu (já com teto) ou do totalUyu do servidor, então nada precisa dele. Ele existe para o dia em que
+ * alguém exibir um valor em pesos que NÃO passou por esses dois (uma soma, uma média, uma sobra calculada no
+ * cliente): nesse caso use esta função, e não formatMoney direto.
+ *
+ * Por quê: formatMoney arredonda com Intl (meio para cima), então 81,4 pesos aparecem como "$U 81" quando o certo é 82.
  * Todo valor em pesos que NÃO passou por convertBrlToUyu (uma soma nossa, um valor fracionário) tem de passar por
  * aqui: os pesos sobem para o inteiro seguinte antes de exibir. Reais seguem inalterados.
  */

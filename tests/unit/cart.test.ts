@@ -781,19 +781,13 @@ describe('PriceSummary', () => {
     expect(texto(m)).not.toContain('R$ 64,55')
   })
 
-  test('visualizando em pesos: cada linha é convertida com arredondamento para cima pela taxa usada no servidor', () => {
+  test('visualizando em pesos: as linhas seguem em reais (somam exato) e os totais saem nas duas moedas', () => {
     const t = texto(resumo(quote(), 'UYU', 'es-UY'))
-    // ceil(39,80 x 8,19)=326, ceil(10 x 8,19)=82, ceil(3,75 x 8,19)=31, ceil(3 x 8,19)=25, ceil(8 x 8,19)=66
-    for (const v of ['$U 326', '$U 82', '$U 31', '$U 25', '$U 66']) expect(t).toContain(v)
+    for (const v of ['R$ 39,80', 'R$ 10,00', 'R$ 3,75', 'R$ 3,00', 'R$ 8,00']) expect(t).toContain(v)
+    expect(t).not.toContain('$U 326') // nenhuma linha convertida: 326+82+31+25+66 = 530 contra um total de 529 parece conta errada
     expect(t).toContain('$U 529')
     expect(t).toContain('R$ 64,55')
-  })
-
-  test('em pesos cada linha sobe, nunca arredonda para o mais próximo: R$ 1,00 a 8,19 é 9, não 8', () => {
-    const q = quote({ breakdown: [{ key: 'base', labelKey: 'pricing.base', amountBrl: 1 }] })
-    const t = texto(resumo(q, 'UYU', 'es-UY'))
-    expect(t).toContain('$U 9')
-    expect(t).not.toContain('$U 8|')
+    expect(t.indexOf('$U 529')).toBeLessThan(t.indexOf('R$ 64,55')) // em pesos, o total em pesos vem primeiro
   })
 
   test('visualizando em pesos sem a taxa usada, as linhas ficam em reais em vez de inventar peso', () => {

@@ -69,6 +69,20 @@ const newLineId = (): string =>
 
 // --- restauração: o storage é entrada não confiável (outra aba, versão antiga, mão no DevTools) -----------------
 
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+// O item guardado entra na tela e no subtotal: qualquer campo de dinheiro ou de regra que não seja o que o tipo
+// promete (um NaN viraria subtotal NaN, e formatMoney lança com valor não finito) derruba a LINHA, nunca a página.
+function validItem(item: CatalogItem): boolean {
+  if (typeof item.id !== 'string' || typeof item.name !== 'string' || !isFiniteNumber(item.priceBrl) || item.priceBrl < 0) return false
+  return item.groups.every(
+    (g) =>
+      g && typeof g.id === 'string' && typeof g.name === 'string' && Number.isInteger(g.minSelect) && Number.isInteger(g.maxSelect) &&
+      Array.isArray(g.options) &&
+      g.options.every((o) => o && typeof o.id === 'string' && typeof o.name === 'string' && isFiniteNumber(o.priceDeltaBrl)),
+  )
+}
+
 function restore(raw: string | null): CartState {
   if (!raw) return EMPTY
   try {
@@ -80,7 +94,7 @@ function restore(raw: string | null): CartState {
     for (const l of d.lines as Partial<CartLine>[]) {
       if (!l || typeof l.lineId !== 'string' || !l.item || !Array.isArray(l.optionIds) || !Array.isArray(l.item.groups)) continue
       if (typeof l.qty !== 'number' || !validQty(l.qty)) continue
-      if (typeof l.item.priceBrl !== 'number' || !Number.isFinite(l.item.priceBrl)) continue
+      if (!validItem(l.item)) continue
       if (l.item.merchantId !== d.merchantId) continue
       if (selectionIssue(l.item, l.optionIds)) continue
       lines.push({ lineId: l.lineId, item: l.item, optionIds: l.optionIds.map(String), qty: l.qty })
