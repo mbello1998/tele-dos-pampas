@@ -6,6 +6,42 @@
 
 ---
 
+## 0. CORREÇÃO DE MODELO — 10/11/2026, do dono do negócio
+
+**Esta seção supersede qualquer trecho abaixo que descreva um marketplace de comida.**
+
+A versão original desta spec tratava `food` como *"pedido de restaurante/trailer, com cardápio e carrinho"*. **Isso nunca foi o produto.** A inspiração declarada na primeira mensagem do dono foi **Uber e 99** — que não vendem comida, **transportam**. O trailer não é vitrine dentro do app: é **cliente do serviço de entrega**. Ele já vendeu o lanche pelo WhatsApp e chama um motoboy para levar.
+
+**Não existe cardápio, carrinho, item de catálogo nem grupo de opção.**
+
+### Os três tipos de serviço
+
+| `kind` | O que é | Quem contrata | Coleta |
+|---|---|---|---|
+| `delivery` | "Coleta no meu trailer e leva neste endereço" | **merchant** (dono da loja) | sempre a coordenada da própria loja |
+| `courier` | "Leva isso pra minha mãe" / "compra na farmácia e traz" | **client** | endereço escolhido por quem pede |
+| `ride` | Mototáxi, passageiro | **client** | endereço escolhido por quem pede |
+
+O `kind` antes chamado `food` passa a **`delivery`**: o que se transporta é irrelevante ao modelo, o que define é **quem contrata e de onde se coleta**.
+
+### O que uma entrega contratada pela loja carrega
+
+**Descrição livre da carga** ("2 xis de coração, 1 coca"), **valor a receber do cliente final** (opcional) e **quem paga a entrega**, escolhido pela loja a cada pedido. Sem subtotal de itens, sem `order_items`, sem snapshot de preço de produto.
+
+### O cliente final
+
+Usa o app **apenas para mototáxi e encomenda**. Comida ele pede direto com a loja, como já faz hoje, e a loja chama o motoboy. **Não existe tela de "pedir comida" para o consumidor.**
+
+### Quem paga a entrega
+
+Decisão **por pedido**, da loja, no momento de chamar o motoboy: ou o cliente final paga a entrega ao motoboy (somada à mercadoria, com troco calculado e conversão para pesos), ou a loja paga. O pedido grava as duas coisas separadamente: **quanto o motoboy recebe do cliente final** e **quem deve a taxa de entrega**.
+
+### Receita da plataforma
+
+Não há comissão sobre a comida, porque a plataforma não vende comida. A receita, quando houver, é fração da **taxa de entrega**, que `pricing_rules.service_fee_pct` já modela (semeada em 0,00). **`merchants.commission_pct` perde sentido e sai do modelo**, e com ele a tabela `order_commissions` deixa de significar comissão de venda.
+
+---
+
 ## 1. Intenção
 
 Plataforma de tele-entrega e mototáxi operando simultaneamente em **Quaraí (RS, Brasil)** e **Artigas (Uruguai)** — duas cidades separadas por uma ponte e tratadas, na prática, como uma só área urbana.
@@ -105,7 +141,7 @@ Ordem justificada: sem catálogo o cliente não tem o que pedir, então a Fatia 
 |---|---|
 | `client` | Pede, acompanha o próprio pedido, avalia, gerencia os próprios endereços |
 | `courier` | Vê fila da cidade onde está habilitado, aceita, move status operacionais, transmite posição |
-| `merchant` | Dono do próprio negócio: cardápio, preço, horário, pedidos da própria loja |
+| `merchant` | Dono da loja que **contrata entregas**: chama motoboy, acompanha as entregas que pediu. Não publica cardápio (ver seção 0) |
 | `fleet` | Dono da tele: motoboys, escala, taxa de entrega, pedidos atendidos pela própria frota |
 | `admin` | Site inteiro, aprovações, settings, auditoria |
 
@@ -131,7 +167,7 @@ Ordem justificada: sem catálogo o cliente não tem o que pedir, então a Fatia 
 **`profiles`** — `id` (FK `auth.users`), `role`, `full_name`, `phone`, `locale` (`pt-BR` | `es-UY`), `currency_pref` (`BRL` | `UYU`), `home_city`, `country`, `status` (`active` | `pending` | `blocked`), `created_at`.
 Idioma e moeda são campos separados e independentes.
 
-**`merchants`** — `id`, `owner_id` (FK `profiles`), `name`, `kind` (`restaurante` | `trailer` | `loja`), `city`, `country`, `address_text`, `lat`, `lng`, `phone`, `prep_time_min`, `commission_pct`, `is_open_manual` (booleano que o dono aperta quando acaba o gás), `accepts_cross_border`, `status` (`pending` | `approved` | `suspended`), `logo_url`, `cover_url`.
+**`merchants`** — `id`, `owner_id` (FK `profiles`), `name`, `kind` (`restaurante` | `trailer` | `loja`), `city`, `country`, `address_text`, `lat`, `lng`, `phone`, `prep_time_min`, ~~`commission_pct`~~ (sem sentido no modelo corrigido, seção 0), `is_open_manual` (booleano que o dono aperta quando acaba o gás), `accepts_cross_border`, `status` (`pending` | `approved` | `suspended`), `logo_url`, `cover_url`.
 
 **`merchant_hours`** — `merchant_id`, `weekday` (0-6), `opens_at`, `closes_at`. Múltiplas faixas por dia permitidas (almoço e noite).
 Loja está aberta se: `status = approved` **e** `is_open_manual = true` **e** hora atual dentro de uma faixa.
@@ -178,7 +214,7 @@ Zona não servida bloqueia o pedido com mensagem explicativa editável.
 
 **`orders`**
 
-- Identificação: `id`, `code` (curto e legível, para falar no telefone), `kind` (`food` | `courier` | `ride`)
+- Identificação: `id`, `code` (curto e legível, para falar no telefone), `kind` (`delivery` | `courier` | `ride`) — ver seção 0
 - Partes: `client_id`, `merchant_id` (nulo em `courier` e `ride`), `courier_id` (nulo até aceite), `fleet_id` (copiado de `couriers.fleet_id` no momento do aceite; permanece nulo quando o motoboy é autônomo, e nesse caso a taxa de entrega é integralmente dele)
 - Geografia: `pickup_address` (jsonb congelado), `dropoff_address` (jsonb congelado), `distance_m`, `route_source` (`osrm` | `haversine`), `crosses_border` (booleano)
 - Status: `status`, `status_updated_at`
