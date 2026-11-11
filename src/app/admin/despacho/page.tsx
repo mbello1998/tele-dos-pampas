@@ -13,13 +13,14 @@ const ERRORS: Record<string, string> = {
   reason: 'O motivo é obrigatório.',
   forbidden: 'Sem permissão para esta ação.',
   stale: 'O pedido já mudou (outra pessoa mexeu antes). Veja o estado atual abaixo e tente de novo.',
+  declined: 'Esse motoboy não aceita este tipo de corrida (travessia da ponte ou passageiro). Escolha outro.',
   notfound: 'Pedido ou motoboy não encontrado.',
   failed: 'Não foi possível concluir. Tente de novo.',
   unauthenticated: 'Sessão vencida: entre de novo.',
 }
 
 const ORDER_COLUMNS =
-  'id, code, kind, status, courier_id, fleet_id, pickup_address, dropoff_address, total_charged, currency_charged, created_at, status_updated_at, merchant:merchants(name, city)'
+  'id, code, kind, status, courier_id, fleet_id, crosses_border, pickup_address, dropoff_address, total_charged, currency_charged, created_at, status_updated_at, merchant:merchants(name, city)'
 
 /**
  * Console de despacho. Deliberadamente simples: uma tabela dos pedidos ativos e, em cada um, só os botões que

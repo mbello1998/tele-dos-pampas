@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/server'
  *     nunca vê isso.
  * O erro volta como código curto, nunca como texto do banco.
  */
-export type DispatchError = 'invalid' | 'reason' | 'forbidden' | 'stale' | 'notfound' | 'failed'
+export type DispatchError = 'invalid' | 'reason' | 'forbidden' | 'stale' | 'declined' | 'notfound' | 'failed'
 export type DispatchResult = { ok: true } | { ok: false; error: DispatchError }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -27,6 +27,8 @@ function classify(error: { code?: string }): DispatchError {
     case '22023': return 'reason'
     case '42501': return 'forbidden'
     case 'P0002': return 'notfound'
+    // 23514: o motoboy marcou que não faz esse tipo de corrida (ponte ou passageiro)
+    case '23514': return 'declined'
     // 55000: o pedido já não está onde a tela mostrava (outro operador, ou o próprio motoboy, mexeu antes)
     case '55000': return 'stale'
     default: return 'failed'

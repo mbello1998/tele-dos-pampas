@@ -200,6 +200,8 @@ declare
   v_note text := nullif(btrim(coalesce(p_note, ''), E' \t\r\n'), '');
   v_o public.orders%rowtype;
   v_fleet uuid;
+  v_cross boolean;
+  v_passenger boolean;
   v_to public.order_status;
 begin
   if not (select public.is_admin()) then
@@ -223,11 +225,20 @@ begin
       using errcode = '55000';
   end if;
 
-  select c.fleet_id into v_fleet
+  select c.fleet_id, c.accepts_cross_border, c.accepts_passenger into v_fleet, v_cross, v_passenger
   from public.couriers c join public.profiles p on p.id = c.profile_id
   where c.profile_id = p_courier and c.status = 'approved' and p.status = 'active' and p.role = 'courier';
   if not found then
     raise exception 'courier % not found or not approved', p_courier using errcode = 'P0002';
+  end if;
+  -- The flags are a boundary the courier set about their own work. Showing them and then ignoring them would
+  -- hand a ride to someone who does not carry passengers, or an Artigas delivery to someone who does not
+  -- cross the bridge, and leave the customer waiting for a refusal. Refused here, not only hidden in the page.
+  if v_o.crosses_border and not v_cross then
+    raise exception 'courier % does not accept orders that cross the border', p_courier using errcode = '23514';
+  end if;
+  if v_o.kind = 'ride' and not v_passenger then
+    raise exception 'courier % does not accept passengers', p_courier using errcode = '23514';
   end if;
 
   v_to := case

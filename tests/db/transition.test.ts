@@ -157,11 +157,11 @@ insert into public.profiles (id, role, full_name, status, home_city) values
 on conflict (id) do update set role = excluded.role, status = excluded.status, full_name = excluded.full_name;
 insert into public.fleets (id, owner_id, name, city, status) values
   ('${ID.fleet1}', '${ID.fleetOwner}', 'Tele Quarai (fixture)', 'quarai', 'approved');
-insert into public.couriers (profile_id, vehicle, base_city, fleet_id, status) values
-  ('${ID.courierQ1}', 'moto', 'quarai', '${ID.fleet1}', 'approved'),
-  ('${ID.courierQ2}', 'moto', 'quarai', null, 'approved'),
-  ('${ID.courierA1}', 'moto', 'artigas', null, 'approved'),
-  ('${ID.courierPending}', 'moto', 'quarai', null, 'pending');
+insert into public.couriers (profile_id, vehicle, base_city, fleet_id, status, accepts_passenger) values
+  ('${ID.courierQ1}', 'moto', 'quarai', '${ID.fleet1}', 'approved', true),
+  ('${ID.courierQ2}', 'moto', 'quarai', null, 'approved', true),
+  ('${ID.courierA1}', 'moto', 'artigas', null, 'approved', false),
+  ('${ID.courierPending}', 'moto', 'quarai', null, 'pending', false);
 insert into public.merchants (id, owner_id, name, kind, city, country, status, commission_pct) values
   ('${ID.shop1}', '${ID.merchant1}', 'Loja 1 (fixture)', 'restaurante', 'quarai', 'BR', 'approved', 10),
   ('${ID.shop2}', '${ID.merchant2}', 'Loja 2 (fixture)', 'restaurante', 'artigas', 'UY', 'approved', 10);

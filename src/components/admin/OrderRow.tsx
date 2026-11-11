@@ -17,6 +17,7 @@ export interface DispatchOrder {
   status: OrderStatus
   courier_id: string | null
   fleet_id: string | null
+  crosses_border: boolean
   pickup_address: Place
   dropoff_address: Place
   total_charged: number | string
@@ -41,7 +42,13 @@ export function OrderRow({ order, rows, couriers }: { order: DispatchOrder; rows
   const city = order.pickup_address?.city ?? merchant?.city ?? null
   const courier = couriers.find((c) => c.profile_id === order.courier_id)
   const waiting = awaitingCourier(rows, order)
-  const candidates = couriers.filter((c) => c.base_city === city)
+  // Same boundaries assign_courier() enforces: never offer a courier the database will refuse.
+  const candidates = couriers.filter(
+    (c) =>
+      c.base_city === city &&
+      (!order.crosses_border || c.accepts_cross_border) &&
+      (order.kind !== 'ride' || c.accepts_passenger),
+  )
   return (
     <tr className="border-t border-white/15 align-top" data-testid="order-row" data-code={order.code} data-status={order.status}>
       <td className="px-2 py-3 font-mono">{order.code}</td>
