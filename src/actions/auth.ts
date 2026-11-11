@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { postLoginPath } from '@/lib/auth/access'
-import { getLoginMethod, normalizeCode, type LoginErrorKind } from '@/lib/auth/login-method'
+import { getLoginMethod, type LoginErrorKind } from '@/lib/auth/login-method'
 import { fetchOwnProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 
@@ -27,8 +27,10 @@ export async function verifyCode(identifier: string, code: string, next?: string
   const method = getLoginMethod()
   const id = method.normalize(typeof identifier === 'string' ? identifier : '')
   if (!id) return { ok: false, error: 'invalid_identifier' }
-  const token = normalizeCode(typeof code === 'string' ? code : '')
-  if (!token) return { ok: false, error: 'code_invalid' }
+  // Pelo descritor do método, nunca por normalizeCode direto: com senha o segredo não é um número de 6 dígitos,
+  // e a tela não é a trava — esta é. Validar aqui com a regra errada recusaria toda senha válida.
+  const token = method.secret.normalize(typeof code === 'string' ? code : '')
+  if (!token) return { ok: false, error: method.twoStep ? 'code_invalid' : 'invalid_identifier' }
 
   const supabase = await createClient()
   const error = await method.verifyCode(supabase, id, token)
