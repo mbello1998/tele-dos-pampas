@@ -42,17 +42,21 @@ async function run(rpc: 'transition_order' | 'assign_courier', args: Record<stri
   return { ok: true }
 }
 
-export async function transitionOrder(orderId: string, to: string, note: string): Promise<DispatchResult> {
-  if (!UUID.test(orderId) || !isStatus(to)) return { ok: false, error: 'invalid' }
+/**
+ * `expectedFrom` is the status the operator SAW. The database refuses the move when the order is no longer there
+ * (a stale tab cannot drag a delivered order back to "ready"); the console always sends it.
+ */
+export async function transitionOrder(orderId: string, to: string, note: string, expectedFrom?: string): Promise<DispatchResult> {
+  if (!UUID.test(orderId) || !isStatus(to) || (expectedFrom !== undefined && !isStatus(expectedFrom))) return { ok: false, error: 'invalid' }
   // Vazio é recusado aqui também (o banco recusaria): o operador vê "motivo obrigatório" sem ida à rede.
   if (note.trim() === '') return { ok: false, error: 'reason' }
-  return run('transition_order', { p_order: orderId, p_to: to, p_note: note })
+  return run('transition_order', { p_order: orderId, p_to: to, p_note: note, p_expected_from: expectedFrom ?? null })
 }
 
-export async function assignCourier(orderId: string, courierId: string, note: string): Promise<DispatchResult> {
-  if (!UUID.test(orderId) || !UUID.test(courierId)) return { ok: false, error: 'invalid' }
+export async function assignCourier(orderId: string, courierId: string, note: string, expectedFrom?: string): Promise<DispatchResult> {
+  if (!UUID.test(orderId) || !UUID.test(courierId) || (expectedFrom !== undefined && !isStatus(expectedFrom))) return { ok: false, error: 'invalid' }
   if (note.trim() === '') return { ok: false, error: 'reason' }
-  return run('assign_courier', { p_order: orderId, p_courier: courierId, p_note: note })
+  return run('assign_courier', { p_order: orderId, p_courier: courierId, p_note: note, p_expected_from: expectedFrom ?? null })
 }
 
 // Envoltórios para <form action>: voltam para a tela com o resultado na URL (um código curto, não texto livre).
@@ -60,10 +64,12 @@ function back(result: DispatchResult): never {
   redirect(result.ok ? '/admin/despacho' : `/admin/despacho?erro=${result.error}`)
 }
 
+const fromOf = (f: FormData) => (f.has('from') ? String(f.get('from')) : undefined)
+
 export async function transitionOrderForm(formData: FormData): Promise<void> {
-  back(await transitionOrder(String(formData.get('order') ?? ''), String(formData.get('to') ?? ''), String(formData.get('note') ?? '')))
+  back(await transitionOrder(String(formData.get('order') ?? ''), String(formData.get('to') ?? ''), String(formData.get('note') ?? ''), fromOf(formData)))
 }
 
 export async function assignCourierForm(formData: FormData): Promise<void> {
-  back(await assignCourier(String(formData.get('order') ?? ''), String(formData.get('courier') ?? ''), String(formData.get('note') ?? '')))
+  back(await assignCourier(String(formData.get('order') ?? ''), String(formData.get('courier') ?? ''), String(formData.get('note') ?? ''), fromOf(formData)))
 }

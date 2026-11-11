@@ -21,6 +21,7 @@ export function TransitionButtons({ order, rows }: { order: OrderLike & { id: st
       {next.length > 0 ? (
         <form action={transitionOrderForm} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="order" value={order.id} />
+          <input type="hidden" name="from" value={order.status} />
           <input name="note" required aria-label="Motivo" placeholder="Motivo (obrigatório)" className={inputClass} />
           {next.map((to) => (
             <button key={to} type="submit" name="to" value={to} className={buttonClass}>
@@ -34,6 +35,7 @@ export function TransitionButtons({ order, rows }: { order: OrderLike & { id: st
           <summary className="cursor-pointer text-sm text-white/70">Ajuste manual</summary>
           <form action={transitionOrderForm} className="mt-2 flex flex-wrap items-center gap-2">
             <input type="hidden" name="order" value={order.id} />
+          <input type="hidden" name="from" value={order.status} />
             <select name="to" required aria-label="Novo estado" defaultValue="" className={inputClass}>
               <option value="" disabled>Novo estado…</option>
               {other.map((to) => (

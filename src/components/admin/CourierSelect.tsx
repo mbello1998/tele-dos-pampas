@@ -32,8 +32,10 @@ export const courierLabel = (c: DispatchCourier) =>
  * dispatch_couriers(), which calls private.effective_radius_km()); this component never reads a courier's own
  * work_radius_km. The courier already on the order is not offered again.
  */
-export function CourierSelect({ orderId, couriers, currentCourierId }: {
+export function CourierSelect({ orderId, status, couriers, currentCourierId }: {
   orderId: string
+  /** The status the operator is looking at: the database refuses the assignment if the order has moved on. */
+  status: string
   couriers: DispatchCourier[]
   currentCourierId: string | null
 }) {
@@ -42,6 +44,7 @@ export function CourierSelect({ orderId, couriers, currentCourierId }: {
   return (
     <form action={assignCourierForm} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="order" value={orderId} />
+      <input type="hidden" name="from" value={status} />
       <select name="courier" required aria-label="Motoboy" defaultValue="" className={inputClass}>
         <option value="" disabled>{currentCourierId ? 'Trocar motoboy…' : 'Atribuir motoboy…'}</option>
         {options.map((c) => (

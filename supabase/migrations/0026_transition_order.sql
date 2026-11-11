@@ -54,7 +54,9 @@ create trigger orders_move_guard before update on public.orders
 -- ---------------------------------------------------------------------------------------------
 -- transition_order
 -- ---------------------------------------------------------------------------------------------
-create function public.transition_order(p_order uuid, p_to public.order_status, p_note text default null)
+create function public.transition_order(
+  p_order uuid, p_to public.order_status, p_note text default null, p_expected_from public.order_status default null
+)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -77,6 +79,14 @@ begin
   select * into v_o from public.orders o where o.id = p_order for update;
   if not found then
     raise exception 'order % not found', p_order using errcode = 'P0002';
+  end if;
+
+  -- The caller's view may be stale (a console tab left open, a courier who tapped a minute ago). A caller that
+  -- passes the status it SAW is refused when the order is no longer there, so a late click cannot drag an order
+  -- backwards (a delivered order "marked ready" by a tab that still showed it cooking). Optional: null skips it.
+  if p_expected_from is not null and p_expected_from <> v_o.status then
+    raise exception 'order % is no longer in status % (it is now %)', p_order, p_expected_from, v_o.status
+      using errcode = '55000';
   end if;
 
   if v_role = 'admin' then
@@ -179,7 +189,9 @@ $$;
 -- accepted keeps its status when the courier changes). fleet_id is copied from the courier and is set to NULL
 -- for an independent one, replacing a stale value rather than keeping it: the delivery fee must follow the
 -- courier who actually drives. The event names the courier, so a later reassignment does not erase who had it.
-create function public.assign_courier(p_order uuid, p_courier uuid, p_note text default null)
+create function public.assign_courier(
+  p_order uuid, p_courier uuid, p_note text default null, p_expected_from public.order_status default null
+)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -203,6 +215,12 @@ begin
   end if;
   if v_o.status in ('entregue', 'finalizado', 'cancelado') then
     raise exception 'order is closed (status %)', v_o.status using errcode = '55000';
+  end if;
+  -- Same stale-view guard as transition_order(): a courier who accepted while the dispatcher was looking at the
+  -- queue changes the status, and the dispatcher's late assignment is refused instead of silently replacing them.
+  if p_expected_from is not null and p_expected_from <> v_o.status then
+    raise exception 'order % is no longer in status % (it is now %)', p_order, p_expected_from, v_o.status
+      using errcode = '55000';
   end if;
 
   select c.fleet_id into v_fleet
@@ -262,15 +280,15 @@ $$;
 -- exactly what is meant. The functions refuse an anonymous caller anyway (no active profile), this is the
 -- second lock.
 revoke all on function
-  public.transition_order(uuid, public.order_status, text),
-  public.assign_courier(uuid, uuid, text),
+  public.transition_order(uuid, public.order_status, text, public.order_status),
+  public.assign_courier(uuid, uuid, text, public.order_status),
   public.dispatch_couriers(text)
 from public, anon, authenticated, service_role;
 grant execute on function
-  public.transition_order(uuid, public.order_status, text),
-  public.assign_courier(uuid, uuid, text),
+  public.transition_order(uuid, public.order_status, text, public.order_status),
+  public.assign_courier(uuid, uuid, text, public.order_status),
   public.dispatch_couriers(text)
 to authenticated;
 
-comment on function public.transition_order(uuid, public.order_status, text) is
+comment on function public.transition_order(uuid, public.order_status, text, public.order_status) is
   'The only way an order changes status. SECURITY DEFINER. Locks the row (FOR UPDATE) before validating, so the accept is atomic. Non-admin: validated against status_transitions for the caller''s role. Admin: any status of the order''s own flow, mandatory reason, always recorded; the bypass is here on purpose and status_transitions has no admin rows.';

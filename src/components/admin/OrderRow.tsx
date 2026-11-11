@@ -68,7 +68,7 @@ export function OrderRow({ order, rows, couriers }: { order: DispatchOrder; rows
         <div className="flex flex-col gap-3">
           <TransitionButtons order={order} rows={rows} />
           {canAssignCourier(order.status) ? (
-            <CourierSelect orderId={order.id} couriers={candidates} currentCourierId={order.courier_id} />
+            <CourierSelect orderId={order.id} status={order.status} couriers={candidates} currentCourierId={order.courier_id} />
           ) : null}
         </div>
       </td>
