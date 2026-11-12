@@ -41,8 +41,22 @@ export type Fix = LatLng & { atMs: number }
 export type Sinal = 'ao_vivo' | 'estimado' | 'perdido'
 
 export type Estimativa = {
-  /** Onde desenhar o marcador, já grudado na rua. */
+  /**
+   * ONDE DESENHAR O PONTEIRO.
+   *
+   * Com sinal, é a LEITURA CRUA: onde o motoboy está de verdade. Antes aqui vinha sempre a projeção na rota,
+   * e isso era mentira confortável — o ponteiro aparecia na rua mais próxima mesmo quando ele estava num
+   * atalho, num pátio ou parado num posto fora da linha. Quem acompanha quer saber onde ele está, não onde
+   * ele deveria estar.
+   *
+   * Sem sinal, aí sim é a projeção avançada sobre a rota: não há leitura, e a rota é o único palpite
+   * defensável. A tela diz que é estimativa, e a linha à frente vira tracejada.
+   */
   posicao: LatLng
+  /** O mesmo ponto grudado na rota. Serve ao desenho da linha e à conta do que falta, não ao ponteiro. */
+  naRota: LatLng
+  /** A que distância da rota o GPS caiu. Grande e ao vivo = ele pegou outro caminho. */
+  foraDaRotaM: number
   /** `ao_vivo` = medido agora. `estimado` = deduzido pela média. `perdido` = parou de deduzir. */
   sinal: Sinal
   /** Metros que faltam PELA RUA. */
@@ -104,8 +118,12 @@ export function estimar(fixes: readonly Fix[], route: Route, agoraMs: number): E
   const porRoteador = route.meters > 0 ? route.seconds * (faltamMetros / route.meters) : 0
   const faltamSegundos = Math.round(Math.max(porMedicao, porRoteador * 0.8))
 
+  const naRota = pointAt(route, metersAlong)
   return {
-    posicao: pointAt(route, metersAlong),
+    // Ao vivo: a leitura crua. Sem sinal: o ponto deduzido sobre a rota.
+    posicao: sinal === 'ao_vivo' ? { lat: ultimo.lat, lng: ultimo.lng } : naRota,
+    naRota,
+    foraDaRotaM: Math.round(medido.offMeters),
     sinal,
     faltamMetros: Math.round(faltamMetros),
     faltamSegundos,
