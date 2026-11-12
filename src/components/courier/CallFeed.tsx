@@ -9,6 +9,8 @@ import type { Locale } from '@/lib/money/format'
 import { CallRow } from './CallRow'
 import { CourierBeacon } from './CourierBeacon'
 import { CourierRoute } from './CourierRoute'
+import { DevolverChamado } from './DevolverChamado'
+import { OrderChat } from '@/components/chat/OrderChat'
 import { courierCopy } from './copy'
 import type { Call } from './types'
 
@@ -138,6 +140,8 @@ export function CallFeed({
                 <CourierBeacon orderId={c.id} locale={locale} />
                 <CallRow call={c} copy={copy} locale={locale} distanceM={distanceTo(c)} nowMs={serverNow} mine onError={onError} />
                 <CourierRoute call={c} here={here} locale={locale} copy={copy} />
+                <OrderChat orderId={c.id} locale={locale} lado="motoboy" faltamSegundos={null} />
+                <DevolverChamado orderId={c.id} locale={locale} />
               </div>
             ))}
           </div>

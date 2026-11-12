@@ -14,6 +14,7 @@ import { textoChegada, type Fix } from '@/lib/realtime/estimate'
 import { useRastreio } from '@/lib/realtime/useRastreio'
 import { remainingLine } from '@/lib/geo/route'
 import { destinationFor } from './data'
+import { OrderChat } from '@/components/chat/OrderChat'
 import { trackingCopy } from './copy'
 import type { TrackingData } from './data'
 
@@ -60,6 +61,8 @@ export function TrackingView({ data, locale }: Props) {
   }, [data.code, data.status])
 
   const active = isTrackingActive(status)
+  // Pedido fechado ainda mostra a conversa: ela é a prova do que foi combinado na porta.
+  const mensagensPossiveis = TERMINAL_OK.has(status) || status === 'cancelado'
   const delivered = TERMINAL_OK.has(status)
   const cancelled = status === 'cancelado'
   // Depois da entrega ou do cancelamento a moto some da tela, mesmo que ainda houvesse uma posição na memória.
@@ -130,6 +133,18 @@ export function TrackingView({ data, locale }: Props) {
           {estimativa.sinal === 'estimado' ? copy.signalEstimated : copy.signalLost}
         </p>
       )}
+
+      {/* O CHAT. Abre sozinho a 90 s da chegada, que é quando passa a haver o que combinar: a porta, o
+          portão, "passou por mim". Antes disso ele é só um botão, para não disputar a tela. */}
+      {(active || mensagensPossiveis) && data.orderId ? (
+        <OrderChat
+          orderId={data.orderId}
+          locale={locale}
+          lado="cliente"
+          faltamSegundos={estimativa?.faltamSegundos ?? null}
+          encerrado={!active}
+        />
+      ) : null}
 
       {searching && <SearchingRadar label={copy.searchingTitle} hint={copy.searchingHint} />}
 

@@ -56,13 +56,22 @@ export function distanciaFalada(metros: number, locale: Locale): string {
   return `${Math.max(10, Math.round(metros / 10) * 10)} m`
 }
 
-/** O miolo da instrução, sem a distância: "vire à direita na Rua dos Andradas". */
-function acao(m: Manobra, locale: Locale): string {
+/**
+ * O miolo da instrução, sem a distância: "vire à direita na Rua dos Andradas".
+ *
+ * `agora` muda o TEMPO VERBAL da chegada, e só dela: "em 200 m, chegou ao destino" mistura futuro com
+ * passado e soa como erro de tradução. De longe se anuncia o que vai acontecer; em cima do ponto, o que
+ * aconteceu.
+ */
+function acao(m: Manobra, locale: Locale, agora: boolean): string {
   const v = VERBO[locale]
   const lado = LADO[locale][m.modifier] ?? ''
   const rua = m.street ? ` ${v.on} ${m.street}` : ''
 
-  if (m.type === 'arrive') return locale === 'pt-BR' ? 'Chegou ao destino' : 'Llegaste al destino'
+  if (m.type === 'arrive') {
+    if (agora) return locale === 'pt-BR' ? 'Chegou ao destino' : 'Llegaste al destino'
+    return locale === 'pt-BR' ? 'você chega ao destino' : 'llegás al destino'
+  }
   if (m.type === 'roundabout' || m.type === 'rotary') return `${v.roundabout} ${lado}${rua}`.replace(/\s+/g, ' ').trim()
   if (m.type === 'fork') return `${v.fork} ${lado}${rua}`.replace(/\s+/g, ' ').trim()
   if (m.type === 'merge') return `${v.merge}${rua}`.trim()
@@ -88,12 +97,15 @@ export function proximaManobra(route: Route, metersAlong: number, locale: Locale
   const proxima = route.manobras.find((m) => m.atMeters > metersAlong + 1)
   if (!proxima) return null
   const metros = Math.max(0, proxima.atMeters - metersAlong)
-  const corpo = acao(proxima, locale)
+  const agora = metros <= AGORA_M
+  const corpo = acao(proxima, locale, agora)
   const v = VERBO[locale]
+  // Chegar não ganha "agora" no fim: "chegou ao destino agora" é redundante, e a frase já é curta.
+  const colar = proxima.type === 'arrive' ? corpo : `${corpo} ${v.now}`
   return {
-    texto: metros <= AGORA_M ? `${corpo} ${v.now}` : `${v.in} ${distanciaFalada(metros, locale)}, ${corpo.charAt(0).toLowerCase()}${corpo.slice(1)}`,
+    texto: agora ? colar : `${v.in} ${distanciaFalada(metros, locale)}, ${corpo.charAt(0).toLowerCase()}${corpo.slice(1)}`,
     metros: Math.round(metros),
-    agora: metros <= AGORA_M,
+    agora,
     manobra: proxima,
   }
 }
@@ -102,5 +114,5 @@ export function proximaManobra(route: Route, metersAlong: number, locale: Locale
 export function manobraSeguinte(route: Route, metersAlong: number, locale: Locale): string | null {
   const i = route.manobras.findIndex((m) => m.atMeters > metersAlong + 1)
   const seguinte = i >= 0 ? route.manobras[i + 1] : undefined
-  return seguinte ? acao(seguinte, locale) : null
+  return seguinte ? acao(seguinte, locale, false) : null
 }

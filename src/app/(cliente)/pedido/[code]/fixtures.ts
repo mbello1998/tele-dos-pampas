@@ -7,6 +7,7 @@
 import type { TrackingData } from './data'
 
 const BASE: Omit<TrackingData, 'code' | 'status' | 'events' | 'position'> = {
+  orderId: '00000000-0000-0000-0000-0000000000f1',
   kind: 'courier',
   pickupText: 'Rua Uruguai, 120 (Quaraí)',
   dropoffText: 'Calle Lecueder, 45 (Artigas)',

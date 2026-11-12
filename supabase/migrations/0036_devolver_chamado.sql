@@ -52,7 +52,10 @@ begin
   update public.orders
      set status = v_volta,
          courier_id = null,
-         updated_at = now()
+         -- `accepted_at` volta a ser nulo: o pedido não está mais aceito por ninguém, e deixar o carimbo
+         -- antigo faria a fila mostrar "aceito há 20 min" para um chamado que acabou de voltar.
+         accepted_at = null,
+         status_updated_at = now()
    where id = p_order;
 
   insert into public.order_events (order_id, from_status, to_status, actor_id, actor_role, note)

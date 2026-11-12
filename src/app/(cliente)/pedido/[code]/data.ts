@@ -6,6 +6,8 @@ import type { LatLng } from '@/lib/geo/types'
 import { isTrackingActive, type EventRow, type PositionRow } from '@/lib/realtime/position'
 
 export type TrackingData = {
+  /** O id do pedido. O chat é por id, não por código: o código é o que a pessoa lê em voz alta. */
+  orderId: string
   code: string
   kind: 'delivery' | 'courier' | 'ride'
   status: string
@@ -88,6 +90,7 @@ export async function loadTracking(supabase: SupabaseClient, code: string): Prom
   const pickup = order.pickup_address as Address
   const dropoff = order.dropoff_address as Address
   return {
+    orderId: String(order.id),
     code: String(order.code),
     kind: order.kind,
     status: String(order.status),
