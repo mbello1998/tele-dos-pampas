@@ -436,9 +436,15 @@ describe('políticas RLS', () => {
       for (const w of [clientA, merchant1, fleet1, admin]) expect(await count(w, 'courier_orders'), JSON.stringify(w)).toBe(0)
       await actAs(db, 'anon')
       expectForbidden(await attempt(db, 'select * from courier_orders'), 'anon')
-      // 7. a linha do tempo continua legível para o courier, só dos pedidos que ele enxerga
-      expect(await readAs(db, courierQ1, 'select order_id from order_events', 'order_id')).toEqual([ID.oFleet1])
-      expect(await readAs(db, courierQ2, 'select order_id from order_events', 'order_id')).toEqual([])
+      // 7. a linha do tempo continua legível para o courier, só dos pedidos que ele enxerga.
+      //
+      // Limitado aos pedidos DO CENÁRIO de propósito. Sem isso o teste afirmava uma lista exata de TODO o
+      // banco e só passava com a base vazia: qualquer chamado real na fila de Quaraí — e eles existem, de
+      // testes anteriores — entra legitimamente nesta leitura, porque chamado na fila é visível ao motoboy.
+      // Um teste que depende de o banco estar quieto não prova nada no dia em que ele não está.
+      const eventosDoCenario = `select order_id from order_events where order_id in (${FIXTURE_ORDERS.map((i) => `'${i}'`).join(',')})`
+      expect(await readAs(db, courierQ1, eventosDoCenario, 'order_id')).toEqual([ID.oFleet1])
+      expect(await readAs(db, courierQ2, eventosDoCenario, 'order_id')).toEqual([])
     })
 
     test('courier não altera status, frota nem cidade do próprio cadastro', async () => {
@@ -1538,10 +1544,18 @@ describe('PostgREST ponta a ponta (JWT real, chave publicável)', () => {
     const T = E.token!
     const v = await rest('courier_orders?select=*&order=created_at', T)
     expect(v.status).toBe(200)
-    // os chamados de exemplo do seed (código EXEM..., 0032) estão na fila de Quarai de propósito e não fazem parte do cenário
-    const own = v.json.filter((r: { code: string }) => !r.code.startsWith('EXEM'))
-    const byId = Object.fromEntries(own.map((r: { id: string }) => [r.id, r]))
-    expect(Object.keys(byId).sort()).toEqual(sorted(orderK, orderQ)) // o que ele carrega + a fila de Quarai
+    // O QUE ESTE TESTE AFIRMA mudou de forma, e de propósito. Antes era uma lista FECHADA do que o motoboy
+    // enxerga no banco inteiro, com um filtro por prefixo de código para excluir os chamados do seed. Isso só
+    // se sustenta com a base limpa: qualquer corrida real parada na fila de Quaraí — e elas existem, de
+    // testes feitos à mão — entra nesta leitura LEGITIMAMENTE, porque chamado na fila é visível ao motoboy.
+    // Um teste que depende de o banco estar quieto falha pelo motivo errado e esconde o certo.
+    //
+    // Então o que se afirma agora é o que realmente importa e não depende do resto da base: ele VÊ o que
+    // carrega e a fila da cidade dele, e NÃO VÊ a fila da outra cidade.
+    const byId = Object.fromEntries(v.json.map((r: { id: string }) => [r.id, r]))
+    expect(Object.keys(byId)).toContain(orderK) // o que ele carrega
+    expect(Object.keys(byId)).toContain(orderQ) // a fila da cidade dele
+    expect(Object.keys(byId)).not.toContain(orderA) // a fila de Artigas nunca
     // o pedido que carrega: dinheiro, total 50, troco para 100, taxa de entrega 10
     expect(byId[orderK]).toMatchObject({ total_charged: 50, change_for: 100, payment_method: 'dinheiro_brl', currency_charged: 'BRL', delivery_fee_brl: 10 })
     // o da fila: sem valores a cobrar
