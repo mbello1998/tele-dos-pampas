@@ -16,6 +16,21 @@ const TIMEOUT_MS = 6000
 /** Linha reta -> malha de ruas, quando o OSRM não responde. O mesmo fator de `osrm.ts`. */
 const URBAN_GRID_FACTOR = 1.35
 
+/**
+ * UMA MANOBRA: o que fazer, onde, e em que rua. É o que vira "em 200 m, vire à direita na Rua dos Andradas".
+ * O OSRM devolve isso junto com a geometria, de graça, na mesma chamada.
+ */
+export type Manobra = {
+  /** Metros desde a partida, medidos sobre a linha: é com isto que se diz "em quantos metros". */
+  atMeters: number
+  /** O verbo: `turn`, `fork`, `roundabout`, `arrive`… como o OSRM nomeia. */
+  type: string
+  /** Para que lado: `left`, `right`, `slight left`, `straight`… Vazio quando não se aplica. */
+  modifier: string
+  /** A rua em que se entra. Vazia em rua sem nome — e aí o texto usa só a direção. */
+  street: string
+}
+
 export type Route = {
   /** Os vértices, do ponto de partida ao destino. Com pelo menos dois pontos. */
   line: LatLng[]
@@ -26,6 +41,8 @@ export type Route = {
   seconds: number
   /** `osrm` = a rota real pelas ruas. `reta` = o OSRM não respondeu e isto é um segmento só. */
   source: 'osrm' | 'reta'
+  /** As curvas, em ordem. Vazio na rota reta: sem ruas, não há o que mandar virar. */
+  manobras: Manobra[]
 }
 
 /** Distâncias acumuladas ao longo da linha. É o que transforma "um ponto da linha" em "quantos metros dali". */
@@ -35,9 +52,16 @@ export function cumulativeMeters(line: LatLng[]): number[] {
   return out
 }
 
-function toRoute(line: LatLng[], seconds: number, source: Route['source']): Route {
+function toRoute(line: LatLng[], seconds: number, source: Route['source'], manobras: Manobra[] = []): Route {
   const cumulative = cumulativeMeters(line)
-  return { line, cumulative, meters: Math.round(cumulative[cumulative.length - 1]), seconds: Math.round(seconds), source }
+  return {
+    line,
+    cumulative,
+    meters: Math.round(cumulative[cumulative.length - 1]),
+    seconds: Math.round(seconds),
+    source,
+    manobras,
+  }
 }
 
 /** A rota reta, para quando o roteador não responde: duas pontas e a distância corrigida pela malha. */
@@ -47,11 +71,41 @@ export function straightRoute(a: LatLng, b: LatLng): Route {
   return toRoute([a, b], (metros / 1000 / 22) * 3600, 'reta')
 }
 
-function parseGeoJson(body: unknown): { line: LatLng[]; seconds: number } | null {
+/**
+ * As manobras, na ordem, com a distância acumulada de cada uma. O OSRM dá a distância DE CADA PASSO (quanto
+ * se anda nele); o que a tela precisa é o oposto — quanto falta ATÉ a curva —, então aqui as distâncias são
+ * somadas à medida que se avança.
+ */
+function parseManobras(legs: unknown): Manobra[] {
+  if (!Array.isArray(legs)) return []
+  const out: Manobra[] = []
+  let acumulado = 0
+  for (const leg of legs) {
+    const steps = (leg as { steps?: unknown })?.steps
+    if (!Array.isArray(steps)) continue
+    for (const step of steps) {
+      const s = step as { distance?: unknown; name?: unknown; maneuver?: { type?: unknown; modifier?: unknown } }
+      const tipo = typeof s.maneuver?.type === 'string' ? s.maneuver.type : ''
+      // `depart` é "saia de onde você está": não é curva, e anunciá-la seria ruído no primeiro metro.
+      if (tipo && tipo !== 'depart') {
+        out.push({
+          atMeters: acumulado,
+          type: tipo,
+          modifier: typeof s.maneuver?.modifier === 'string' ? s.maneuver.modifier : '',
+          street: typeof s.name === 'string' ? s.name.trim() : '',
+        })
+      }
+      acumulado += typeof s.distance === 'number' && Number.isFinite(s.distance) ? s.distance : 0
+    }
+  }
+  return out
+}
+
+function parseGeoJson(body: unknown): { line: LatLng[]; seconds: number; manobras: Manobra[] } | null {
   if (typeof body !== 'object' || body === null) return null
   const { code, routes } = body as { code?: unknown; routes?: unknown }
   if (code !== 'Ok' || !Array.isArray(routes) || routes.length === 0) return null
-  const first = routes[0] as { geometry?: { coordinates?: unknown }; duration?: unknown }
+  const first = routes[0] as { geometry?: { coordinates?: unknown }; duration?: unknown; legs?: unknown }
   const coords = first?.geometry?.coordinates
   if (!Array.isArray(coords) || coords.length < 2) return null
   const line: LatLng[] = []
@@ -63,7 +117,7 @@ function parseGeoJson(body: unknown): { line: LatLng[]; seconds: number } | null
     line.push({ lat, lng })
   }
   const duration = typeof first.duration === 'number' && Number.isFinite(first.duration) ? first.duration : 0
-  return { line, seconds: duration }
+  return { line, seconds: duration, manobras: parseManobras(first.legs) }
 }
 
 /**
@@ -74,11 +128,12 @@ export async function fetchRoute(a: LatLng, b: LatLng): Promise<Route> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
-    const url = `${OSRM_BASE}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`
+    // `steps=true` traz as curvas e o nome das ruas na MESMA chamada: navegação sem um pedido a mais.
+    const url = `${OSRM_BASE}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&steps=true`
     const res = await fetch(url, { signal: controller.signal })
     if (res.status !== 200) return straightRoute(a, b)
     const parsed = parseGeoJson(await res.json())
-    return parsed ? toRoute(parsed.line, parsed.seconds, 'osrm') : straightRoute(a, b)
+    return parsed ? toRoute(parsed.line, parsed.seconds, 'osrm', parsed.manobras) : straightRoute(a, b)
   } catch {
     return straightRoute(a, b)
   } finally {

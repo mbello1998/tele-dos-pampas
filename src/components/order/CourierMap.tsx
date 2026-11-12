@@ -267,6 +267,16 @@ function TileMap({
     }
   }, [])
 
+  // SEM MOTOBOY AINDA, mas com destino: a câmera vai para o destino. Sem isto a cena nunca é posicionada e o
+  // mapa aparece em branco — justamente para quem acabou de aceitar a corrida e quer ver onde fica.
+  useEffect(() => {
+    if (courier || !destination) return
+    const z = fitZoom([destination], sizeRef.current)
+    zoomRef.current = z
+    setZoom(z)
+    placeRef.current(destination)
+  }, [courier, destination])
+
   // Cada fix novo: zoom que encaixa motoboy e destino, rumo, e o deslize até o ponto.
   useEffect(() => {
     const animator = animatorRef.current
@@ -394,7 +404,14 @@ function TileMap({
               </svg>
             </div>
           )}
-          <div ref={markerRef} role="img" aria-label={labels.courier} className="absolute left-0 top-0 h-9 w-9 will-change-transform" data-courier-marker>
+          {/* Sem posição, o marcador não entra: parado em 0,0 ele desenharia uma moto no meio do Atlântico. */}
+          <div
+            ref={markerRef}
+            role="img"
+            aria-label={labels.courier}
+            className={`absolute left-0 top-0 h-9 w-9 will-change-transform ${courier ? '' : 'hidden'}`}
+            data-courier-marker
+          >
             <div ref={headingRef} className="h-9 w-9">
               <svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
                 <circle cx="18" cy="18" r="16" fill="#F2A516" stroke="#0B0F0D" strokeWidth="2.5" />

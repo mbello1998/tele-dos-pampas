@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useMemo } from 'react'
 import type { MapLabels } from '@/components/order/CourierMap'
 import { remainingLine } from '@/lib/geo/route'
+import { manobraSeguinte, proximaManobra } from '@/lib/geo/manobra'
 import type { LatLng } from '@/lib/geo/types'
 import { textoChegada, type Fix } from '@/lib/realtime/estimate'
 import { useRastreio } from '@/lib/realtime/useRastreio'
@@ -53,9 +54,16 @@ export function CourierRoute({
     [rota, estimativa],
   )
 
-  if (!alvo || !here) return null
+  // Sem o ponto de entrega não há o que desenhar. Mas SEM O GPS DELE o mapa continua: o destino já é
+  // metade da informação, e esconder a tela inteira enquanto o aparelho procura sinal é tirar o mapa
+  // exatamente de quem acabou de aceitar a corrida e quer saber onde fica.
+  if (!alvo) return null
 
   const endereco = [ponta.street, ponta.number].filter(Boolean).join(', ')
+  const andados = rota && estimativa ? rota.meters - estimativa.faltamMetros : 0
+  const instrucao = rota ? proximaManobra(rota, andados, locale) : null
+  const depois = rota ? manobraSeguinte(rota, andados, locale) : null
+
   return (
     <div className="rounded-xl border border-borda bg-superficie p-3">
       <p className="mb-2 flex items-baseline justify-between gap-3">
@@ -64,10 +72,34 @@ export function CourierRoute({
           <span className="preco text-base font-bold text-sol">{textoChegada(estimativa.faltamSegundos, locale)}</span>
         ) : null}
       </p>
+
+      {/* A FAIXA DE NAVEGAÇÃO. Uma instrução por vez, grande, com a seguinte pequena embaixo — a dinâmica do
+          Waze, e ela existe por um motivo físico: ninguém lê uma lista de dez passos a 40 km/h. O motoboy
+          olha meio segundo no semáforo e tem de sair sabendo a próxima curva.
+          Em cima da esquina a faixa acende: ali já não dá tempo de ler uma frase comprida. */}
+      {instrucao && (
+        <div
+          className={`mb-2 rounded-lg border-l-4 px-3 py-2 ${
+            instrucao.agora ? 'border border-sol bg-sol/20 border-l-sol' : 'border border-borda bg-poco border-l-rio'
+          }`}
+          data-manobra={instrucao.agora ? 'agora' : 'adiante'}
+          aria-live="polite"
+        >
+          <p className={`${instrucao.agora ? 'text-xl' : 'text-lg'} font-extrabold leading-tight text-white`}>
+            {instrucao.texto}
+          </p>
+          {depois ? <p className="mt-0.5 text-sm text-white/55">{locale === 'pt-BR' ? 'depois' : 'después'}: {depois}</p> : null}
+        </div>
+      )}
+      {!here && (
+        <p className="mb-2 text-sm text-white/60">
+          {locale === 'pt-BR' ? 'Procurando o seu sinal para traçar o caminho…' : 'Buscando tu señal para trazar el camino…'}
+        </p>
+      )}
       <CourierMap
         tileUrlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="© OpenStreetMap"
-        courier={{ ...here }}
+        courier={here ? { ...here } : null}
         destination={alvo}
         addressText={endereco}
         labels={MAPA[locale]}
