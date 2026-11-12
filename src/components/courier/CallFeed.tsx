@@ -37,6 +37,8 @@ export function CallFeed({
   const router = useRouter()
   const [here, setHere] = useState<LatLng | null>(null)
   const [gpsOff, setGpsOff] = useState(false)
+  // A fila nasce escondida quando ele já tem corrida: ver o que vem depois é escolha dele, não ruído padrão.
+  const [verFila, setVerFila] = useState(false)
   const [notice, setNotice] = useState<CallError | null>(null)
 
   // Position: watched, not polled, and never sent anywhere from here.
@@ -148,6 +150,24 @@ export function CallFeed({
         </section>
       ) : null}
 
+      {/* COM UMA CORRIDA ACEITA, A FILA SAI DA FRENTE.
+          Quem já aceitou tem uma tarefa só: chegar. A lista de outros chamados abaixo dela não ajuda em
+          nada e atrapalha em tudo — é mais rolagem entre ele e o botão que ele precisa tocar, num aparelho
+          preso ao guidão. A fila continua a um toque de distância, porque às vezes ele quer ver o que vem
+          depois; só não fica no caminho. */}
+      {mine.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setVerFila((v) => !v)}
+          className="mb-3 min-h-11 w-full rounded-lg border border-borda px-3 text-sm font-semibold text-white/70"
+          data-ver-fila={verFila ? 'aberta' : 'fechada'}
+        >
+          {verFila ? copy.hide_queue : copy.show_queue(visible.length)}
+        </button>
+      ) : null}
+
+      {mine.length > 0 && !verFila ? null : (
+        <>
       {mine.length > 0 ? <h2 className={`${display} mb-2 text-xl leading-none tracking-wide text-white/70`}>{copy.queue_title}</h2> : null}
 
       {visible.length === 0 && !loadFailed ? (
@@ -161,6 +181,8 @@ export function CallFeed({
             <CallRow key={c.id} call={c} copy={copy} locale={locale} distanceM={distanceTo(c)} nowMs={serverNow} mine={false} onError={onError} />
           ))}
         </div>
+      )}
+        </>
       )}
 
       <footer className="mt-5 space-y-1 text-sm text-white/65">

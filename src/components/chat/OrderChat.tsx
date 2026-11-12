@@ -49,7 +49,14 @@ export function OrderChat({ orderId, locale, lado, faltamSegundos, encerrado = f
     setMensagens(await listarMensagens(orderId))
   }, [orderId])
 
-  // A primeira carga e o canal ao vivo.
+  // A primeira carga, o canal ao vivo — e uma RECONFERIDA PERIÓDICA.
+  //
+  // A reconferida não é zelo: é o que faz o chat funcionar hoje. O canal do Supabase entrega a mensagem na
+  // hora quando funciona, mas depender só dele significa que, no dia em que ele não entregar, o recado fica
+  // parado na tela de quem precisava lê-lo — e ninguém descobre, porque não há erro nenhum. Numa conversa
+  // entre quem está dirigindo e quem está esperando na calçada, mensagem que não chega é pior que lentidão.
+  //
+  // 5 s só enquanto o chat está ABERTO e a aba visível: fechado ou em segundo plano não gasta nada.
   useEffect(() => {
     let vivo = true
     void listarMensagens(orderId).then((m) => {
@@ -74,6 +81,15 @@ export function OrderChat({ orderId, locale, lado, faltamSegundos, encerrado = f
       void canal.unsubscribe()
     }
   }, [orderId])
+
+  useEffect(() => {
+    if (!aberto) return
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void listarMensagens(orderId).then(setMensagens)
+    }, 5_000)
+    return () => clearInterval(id)
+  }, [aberto, orderId])
 
   // Abre sozinho perto da chegada — uma vez só, para não reabrir depois de a pessoa fechar.
   useEffect(() => {
