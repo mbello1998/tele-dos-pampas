@@ -104,9 +104,14 @@ type Props = {
   /** O endereço em texto: é o que aparece quando o mapa não pode. */
   addressText: string
   labels: MapLabels
+  /** A rota inteira pelas ruas, e o trecho que ainda falta. */
+  routeLine?: LatLng[] | null
+  aheadLine?: LatLng[] | null
+  /** Posição deduzida (sem sinal): a linha à frente vira tracejada. */
+  estimated?: boolean
 }
 
-export function CourierMap({ tileUrlTemplate, attribution, courier, destination, addressText, labels }: Props) {
+export function CourierMap({ tileUrlTemplate, attribution, courier, destination, addressText, labels, routeLine, aheadLine, estimated }: Props) {
   const [optedIn, setOptedIn] = useState(false)
   const [saveData, setSaveData] = useState(false)
   useEffect(() => setSaveData(isConstrainedNetwork()), [])
@@ -140,6 +145,9 @@ export function CourierMap({ tileUrlTemplate, attribution, courier, destination,
       addressText={addressText}
       distanceText={distanceText}
       labels={labels}
+      routeLine={routeLine ?? null}
+      aheadLine={aheadLine ?? null}
+      estimated={estimated}
     />
   )
 }
@@ -173,6 +181,9 @@ function TileMap({
   addressText,
   distanceText,
   labels,
+  routeLine,
+  aheadLine,
+  estimated,
 }: {
   template: string
   attribution: string | null
@@ -181,6 +192,12 @@ function TileMap({
   addressText: string
   distanceText: string | null
   labels: MapLabels
+  /** A rota inteira, pelas ruas. Desenhada apagada: é o caminho todo, contexto. */
+  routeLine?: LatLng[] | null
+  /** O que ainda falta. Desenhado por cima, aceso: é o que importa agora. */
+  aheadLine?: LatLng[] | null
+  /** Traço cortado = posição deduzida (sem sinal). A linha também conta essa verdade, não só o texto. */
+  estimated?: boolean
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
@@ -290,6 +307,31 @@ function TileMap({
   if (range) for (let x = range.x0; x <= range.x1; x++) for (let y = range.y0; y <= range.y1; y++) tiles.push({ x, y })
   const dest = destination ? toWorldPx(destination, zoom) : null
 
+  /**
+   * A rota em pixels de mundo. Fica num SVG com origem deslocada (e não em 0,0) porque em zoom 17 as
+   * coordenadas de mundo passam de 17 milhões de pixels, e um SVG desse tamanho nenhum navegador desenha.
+   */
+  const routeSvg = (() => {
+    const pontos = (routeLine?.length ?? 0) >= 2 ? routeLine! : null
+    if (!pontos) return null
+    const todos = pontos.map((p) => toWorldPx(p, zoom))
+    const adiante = (aheadLine ?? []).map((p) => toWorldPx(p, zoom))
+    const xs = todos.map((p) => p.x)
+    const ys = todos.map((p) => p.y)
+    const margem = 8
+    const x = Math.min(...xs) - margem
+    const y = Math.min(...ys) - margem
+    const fmt = (ps: { x: number; y: number }[]) => ps.map((p) => `${(p.x - x).toFixed(1)},${(p.y - y).toFixed(1)}`).join(' ')
+    return {
+      x,
+      y,
+      width: Math.max(...xs) - x + margem,
+      height: Math.max(...ys) - y + margem,
+      all: fmt(todos),
+      ahead: adiante.length >= 2 ? fmt(adiante) : '',
+    }
+  })()
+
   return (
     <figure className="m-0" data-courier-map>
       <div ref={viewportRef} className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#161c19]" style={{ touchAction: 'pan-y' }}>
@@ -310,6 +352,34 @@ function TileMap({
               style={{ transform: `translate(${x * TILE}px, ${y * TILE}px)` }}
             />
           ))}
+          {/* A ROTA. Um SVG só, posicionado em coordenadas de mundo como os tiles: anda junto com a cena, sem
+              recalcular nada a cada quadro. Duas camadas, porque dizem coisas diferentes: o caminho inteiro
+              apagado (para onde ele vai) e o que falta por cima, aceso (onde ele está agora). */}
+          {routeSvg && (
+            <svg
+              className="pointer-events-none absolute left-0 top-0 max-w-none"
+              width={routeSvg.width}
+              height={routeSvg.height}
+              style={{ transform: `translate(${routeSvg.x}px, ${routeSvg.y}px)` }}
+              aria-hidden="true"
+              data-route
+            >
+              {routeSvg.all && (
+                <polyline points={routeSvg.all} fill="none" stroke="#2E7D8C" strokeOpacity={0.55} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+              )}
+              {routeSvg.ahead && (
+                <polyline
+                  points={routeSvg.ahead}
+                  fill="none"
+                  stroke="#F2A516"
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray={estimated ? '10 9' : undefined}
+                />
+              )}
+            </svg>
+          )}
           {dest && (
             <div
               role="img"

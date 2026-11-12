@@ -7,6 +7,8 @@ import { haversineMeters } from '@/lib/geo/distance'
 import type { LatLng } from '@/lib/geo/types'
 import type { Locale } from '@/lib/money/format'
 import { CallRow } from './CallRow'
+import { CourierBeacon } from './CourierBeacon'
+import { CourierRoute } from './CourierRoute'
 import { courierCopy } from './copy'
 import type { Call } from './types'
 
@@ -129,7 +131,14 @@ export function CallFeed({
           <h2 className={`${display} mb-2 text-xl leading-none tracking-wide text-sol`}>{copy.mine_title}</h2>
           <div className="flex flex-col gap-3">
             {mine.map((c) => (
-              <CallRow key={c.id} call={c} copy={copy} locale={locale} distanceM={distanceTo(c)} nowMs={serverNow} mine onError={onError} />
+              <div key={c.id} className="flex flex-col gap-2">
+                {/* O FAROL, só no trabalho em andamento. Ele é quem põe a posição do motoboy no ar — sem
+                    ele o cliente espera para sempre uma moto que nunca aparece no mapa. E só aqui: fora de
+                    uma corrida, ficar transmitindo onde o motoboy está seria rastrear a pessoa, não o pedido. */}
+                <CourierBeacon orderId={c.id} locale={locale} />
+                <CallRow call={c} copy={copy} locale={locale} distanceM={distanceTo(c)} nowMs={serverNow} mine onError={onError} />
+                <CourierRoute call={c} here={here} locale={locale} copy={copy} />
+              </div>
             ))}
           </div>
         </section>

@@ -14,6 +14,13 @@ export type TrackingData = {
   pickupText: string
   dropoffText: string
   destination: LatLng | null
+  /**
+   * As duas pontas cruas. `destination` já é o alvo certo para o status do servidor, mas o status muda AO
+   * VIVO: no instante em que o motoboy pega o passageiro, o alvo passa de "me buscar" para "me levar". Sem as
+   * pontas na mão, a tela desenharia o caminho errado até alguém recarregar a página.
+   */
+  pickup: LatLng | null
+  dropoff: LatLng | null
   tileUrl: string | null
   attribution: string | null
   etaMinutes: number | null
@@ -102,6 +109,8 @@ export async function loadTracking(supabase: SupabaseClient, code: string): Prom
     pickupText: addressText(pickup),
     dropoffText: addressText(dropoff),
     destination: destinationFor(order.kind, String(order.status), addressPoint(pickup), addressPoint(dropoff)),
+    pickup: addressPoint(pickup),
+    dropoff: addressPoint(dropoff),
     tileUrl: setting('map.tile_url'),
     attribution: setting('map.tile_attribution'),
     etaMinutes: order.eta_minutes == null ? null : Number(order.eta_minutes),

@@ -11,6 +11,10 @@ export type TrackingCopy = {
   searchingHint: string
   waitingSignal: string
   waitingSignalHint: string
+  /** O sinal caiu: a tela segue por estimativa e diz isso. */
+  signalEstimated: string
+  /** Tempo demais sem sinal: parou de deduzir. */
+  signalLost: string
   deliveredTitle: string
   cancelledTitle: string
   cancelReason: string
@@ -44,6 +48,8 @@ const ptBR: TrackingCopy = {
   searchingTitle: 'Procurando um motoboy perto de você',
   searchingHint: 'Costuma levar poucos minutos. Você pode fechar esta tela: avisamos quando alguém aceitar.',
   waitingSignal: 'Aguardando o sinal do motoboy',
+  signalEstimated: 'Sem sinal do motoboy agora. A posição na tela é estimada pela velocidade dele até o sinal voltar.',
+  signalLost: 'Faz tempo que não chega sinal do motoboy. Paramos de estimar: a posição na tela é a última confiável.',
   waitingSignalHint: 'Assim que ele ligar a localização, a moto aparece no mapa. O andamento do pedido continua abaixo.',
   deliveredTitle: 'Tudo certo, o pedido foi entregue.',
   cancelledTitle: 'Este pedido foi cancelado.',
@@ -84,6 +90,8 @@ const esUY: TrackingCopy = {
   searchingTitle: 'Buscando un motoboy cerca de vos',
   searchingHint: 'Suele llevar pocos minutos. Podés cerrar esta pantalla: te avisamos cuando alguien acepte.',
   waitingSignal: 'Esperando la señal del motoboy',
+  signalEstimated: 'Sin señal del motoboy ahora. La posición en pantalla es estimada por su velocidad hasta que la señal vuelva.',
+  signalLost: 'Hace rato que no llega señal del motoboy. Dejamos de estimar: la posición en pantalla es la última confiable.',
   waitingSignalHint: 'Apenas active la ubicación, la moto aparece en el mapa. El avance del pedido sigue abajo.',
   deliveredTitle: 'Todo bien, el pedido fue entregado.',
   cancelledTitle: 'Este pedido fue cancelado.',

@@ -11,6 +11,8 @@ const BASE: Omit<TrackingData, 'code' | 'status' | 'events' | 'position'> = {
   pickupText: 'Rua Uruguai, 120 (Quaraí)',
   dropoffText: 'Calle Lecueder, 45 (Artigas)',
   destination: { lat: -30.3902, lng: -56.4651 },
+  pickup: { lat: -30.3902, lng: -56.4651 },
+  dropoff: { lat: -30.3902, lng: -56.4651 },
   tileUrl: 'https://tiles.e2e.test/{z}/{x}/{y}.png',
   attribution: '© e2e',
   etaMinutes: 12,
